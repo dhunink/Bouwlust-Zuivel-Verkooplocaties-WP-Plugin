@@ -13,6 +13,7 @@ final class BZV_Admin {
         add_action('all_admin_notices', [__CLASS__, 'render_import_panel']);
         add_action('admin_post_bzv_preview', [__CLASS__, 'handle_preview_request']);
         add_action('admin_post_bzv_import', [__CLASS__, 'handle_import_request']);
+        add_action('admin_post_bzv_retry_geocoding', [__CLASS__, 'handle_retry_geocoding_request']);
     }
 
     public static function requirements_notice(): void {
@@ -58,9 +59,11 @@ final class BZV_Admin {
         echo '<div style="background:#fff;border:1px solid #c3c4c7;border-left:4px solid #2271b1;padding:18px 20px;">';
         echo '<h2 style="margin-top:0;">Verkooppunten importeren</h2>';
         echo '<p>Verwachte kolommen: <strong>Klant</strong>, <strong>Straat + huisnr.</strong>, <strong>Postcode</strong> en <strong>Plaats</strong>. CSV en XLSX worden ondersteund.</p>';
+        self::render_status_summary();
 
         $preview_token = isset($_GET['bzv_preview']) ? sanitize_text_field(wp_unslash($_GET['bzv_preview'])) : '';
         $result_token = isset($_GET['bzv_result']) ? sanitize_text_field(wp_unslash($_GET['bzv_result'])) : '';
+        $retry_token = isset($_GET['bzv_retry']) ? sanitize_text_field(wp_unslash($_GET['bzv_retry'])) : '';
         $error_token = isset($_GET['bzv_error']) ? sanitize_text_field(wp_unslash($_GET['bzv_error'])) : '';
 
         if ($error_token) {
@@ -68,6 +71,15 @@ final class BZV_Admin {
             delete_transient(self::transient_key('error_' . $error_token));
             if (is_array($payload) && !empty($payload['message'])) {
                 self::error((string) $payload['message']);
+            }
+            self::render_upload_form();
+        } elseif ($retry_token) {
+            $payload = get_transient(self::transient_key('retry_' . $retry_token));
+            delete_transient(self::transient_key('retry_' . $retry_token));
+            if (is_array($payload) && !empty($payload['result'])) {
+                self::render_retry_result($payload['result']);
+            } else {
+                self::error('Het resultaat van de geocoding-herstelactie is niet meer beschikbaar.');
             }
             self::render_upload_form();
         } elseif ($result_token) {
@@ -165,6 +177,13 @@ final class BZV_Admin {
         $result = BZV_Importer::run($payload['rows'], $deactivate_missing);
         delete_transient($key);
 
+        update_option('bzv_last_import', [
+            'timestamp' => time(),
+            'filename' => (string) ($payload['filename'] ?? ''),
+            'record_count' => count($payload['rows']),
+            'result' => $result,
+        ], false);
+
         $result_token = wp_generate_password(20, false, false);
         set_transient(
             self::transient_key('result_' . $result_token),
@@ -175,6 +194,29 @@ final class BZV_Admin {
         wp_safe_redirect(self::screen_url_from_layout($layout, [
             'zuivel_import' => '1',
             'bzv_result' => $result_token,
+        ]));
+        exit;
+    }
+
+    public static function handle_retry_geocoding_request(): void {
+        if (!current_user_can('edit_posts')) {
+            wp_die('Onvoldoende rechten.');
+        }
+        check_admin_referer('bzv_retry_geocoding', 'bzv_nonce');
+
+        $layout = isset($_POST['bzv_layout']) ? sanitize_text_field(wp_unslash($_POST['bzv_layout'])) : '';
+        $result = BZV_Maintenance::retry_missing_locations();
+
+        $token = wp_generate_password(20, false, false);
+        set_transient(
+            self::transient_key('retry_' . $token),
+            ['result' => $result],
+            10 * MINUTE_IN_SECONDS
+        );
+
+        wp_safe_redirect(self::screen_url_from_layout($layout, [
+            'zuivel_import' => '1',
+            'bzv_retry' => $token,
         ]));
         exit;
     }
@@ -255,7 +297,11 @@ final class BZV_Admin {
     }
 
     private static function render_result(array $result): void {
-        echo '<div class="notice notice-success inline"><p><strong>Import gereed.</strong> '
+        $has_problems = !empty($result['geocode_failed']) || !empty($result['errors']);
+        $notice_class = $has_problems ? 'notice-warning' : 'notice-success';
+        $title = $has_problems ? 'Import uitgevoerd met aandachtspunten.' : 'Import gereed.';
+
+        echo '<div class="notice ' . esc_attr($notice_class) . ' inline"><p><strong>' . esc_html($title) . '</strong> '
             . (int) ($result['created'] ?? 0) . ' nieuw, '
             . (int) ($result['updated'] ?? 0) . ' bijgewerkt, '
             . (int) ($result['unchanged'] ?? 0) . ' ongewijzigd, '
@@ -274,6 +320,56 @@ final class BZV_Admin {
 
         echo '<p><a class="button button-primary" href="' . esc_url(self::screen_url()) . '">Import sluiten</a> '
             . '<a class="button" href="' . esc_url(self::screen_url(['zuivel_import' => '1'])) . '">Nog een bestand importeren</a></p>';
+    }
+
+    private static function render_retry_result(array $result): void {
+        $failed = (int) ($result['failed'] ?? 0);
+        $notice_class = $failed ? 'notice-warning' : 'notice-success';
+        $title = $failed ? 'Geocoding opnieuw uitgevoerd met aandachtspunten.' : 'Geocoding opnieuw uitgevoerd.';
+
+        echo '<div class="notice ' . esc_attr($notice_class) . ' inline"><p><strong>' . esc_html($title) . '</strong> '
+            . (int) ($result['succeeded'] ?? 0) . ' hersteld'
+            . ($failed ? ', ' . $failed . ' mislukt' : '')
+            . '.</p></div>';
+
+        if (!empty($result['errors'])) {
+            echo '<div class="notice notice-warning inline"><ul style="list-style:disc;padding-left:24px;">';
+            foreach ($result['errors'] as $message) {
+                echo '<li>' . esc_html($message) . '</li>';
+            }
+            echo '</ul></div>';
+        }
+    }
+
+    private static function render_status_summary(): void {
+        $last = get_option('bzv_last_import');
+        $missing = BZV_Maintenance::count_missing_locations();
+
+        if (is_array($last) && !empty($last['timestamp'])) {
+            $timestamp = (int) $last['timestamp'];
+            $filename = (string) ($last['filename'] ?? '');
+            $count = (int) ($last['record_count'] ?? 0);
+            echo '<div style="margin:12px 0 16px;padding:10px 12px;background:#f6f7f7;border:1px solid #dcdcde;">';
+            echo '<strong>Laatste import:</strong> ' . esc_html(wp_date('d-m-Y H:i', $timestamp));
+            if ($filename !== '') {
+                echo ' · ' . esc_html($filename);
+            }
+            if ($count) {
+                echo ' · ' . $count . ' records';
+            }
+            echo ' · ' . ($missing ? '<strong>' . (int) $missing . ' zonder kaartlocatie</strong>' : 'alle kaartlocaties compleet');
+            echo '</div>';
+        }
+
+        if ($missing > 0) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:0 0 18px;">';
+            wp_nonce_field('bzv_retry_geocoding', 'bzv_nonce');
+            echo '<input type="hidden" name="action" value="bzv_retry_geocoding">';
+            echo '<input type="hidden" name="bzv_layout" value="' . esc_attr(self::current_layout()) . '">';
+            submit_button('Geocoding opnieuw proberen (' . $missing . ')', 'secondary', 'submit', false);
+            echo '<span class="description" style="margin-left:8px;">Probeert alleen verkooppunten zonder geldige kaartlocatie opnieuw.</span>';
+            echo '</form>';
+        }
     }
 
     private static function redirect_error(string $message, string $layout = ''): void {
