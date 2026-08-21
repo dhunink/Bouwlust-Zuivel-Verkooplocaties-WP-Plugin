@@ -5,12 +5,14 @@ if (!defined('ABSPATH')) {
 }
 
 final class BZV_Admin {
-    private const TRANSIENT_PREFIX = 'bzv_import_preview_';
+    private const TRANSIENT_PREFIX = 'bzv_import_';
 
     public static function init(): void {
         add_action('admin_notices', [__CLASS__, 'requirements_notice']);
         add_action('admin_head-edit.php', [__CLASS__, 'inject_import_button']);
         add_action('all_admin_notices', [__CLASS__, 'render_import_panel']);
+        add_action('admin_post_bzv_preview', [__CLASS__, 'handle_preview_request']);
+        add_action('admin_post_bzv_import', [__CLASS__, 'handle_import_request']);
     }
 
     public static function requirements_notice(): void {
@@ -48,13 +50,7 @@ final class BZV_Admin {
     }
 
     public static function render_import_panel(): void {
-        if (!self::is_cpt_list_screen() || !current_user_can('edit_posts')) {
-            return;
-        }
-
-        $action = isset($_POST['zuivel_action']) ? sanitize_key(wp_unslash($_POST['zuivel_action'])) : '';
-        $show = !empty($_GET['zuivel_import']) || $action !== '';
-        if (!$show) {
+        if (!self::is_cpt_list_screen() || !current_user_can('edit_posts') || empty($_GET['zuivel_import'])) {
             return;
         }
 
@@ -63,10 +59,34 @@ final class BZV_Admin {
         echo '<h2 style="margin-top:0;">Verkooppunten importeren</h2>';
         echo '<p>Verwachte kolommen: <strong>Klant</strong>, <strong>Straat + huisnr.</strong>, <strong>Postcode</strong> en <strong>Plaats</strong>. CSV en XLSX worden ondersteund.</p>';
 
-        if ($action === 'preview') {
-            self::handle_preview();
-        } elseif ($action === 'import') {
-            self::handle_import();
+        $preview_token = isset($_GET['bzv_preview']) ? sanitize_text_field(wp_unslash($_GET['bzv_preview'])) : '';
+        $result_token = isset($_GET['bzv_result']) ? sanitize_text_field(wp_unslash($_GET['bzv_result'])) : '';
+        $error_token = isset($_GET['bzv_error']) ? sanitize_text_field(wp_unslash($_GET['bzv_error'])) : '';
+
+        if ($error_token) {
+            $payload = get_transient(self::transient_key('error_' . $error_token));
+            delete_transient(self::transient_key('error_' . $error_token));
+            if (is_array($payload) && !empty($payload['message'])) {
+                self::error((string) $payload['message']);
+            }
+            self::render_upload_form();
+        } elseif ($result_token) {
+            $payload = get_transient(self::transient_key('result_' . $result_token));
+            delete_transient(self::transient_key('result_' . $result_token));
+            if (is_array($payload) && !empty($payload['result'])) {
+                self::render_result($payload['result']);
+            } else {
+                self::error('Het importresultaat is niet meer beschikbaar.');
+                self::render_upload_form();
+            }
+        } elseif ($preview_token) {
+            $payload = get_transient(self::transient_key('preview_' . $preview_token));
+            if (is_array($payload) && !empty($payload['analysis']) && !empty($payload['rows'])) {
+                self::render_preview($payload['analysis'], $preview_token, (string) ($payload['filename'] ?? 'bestand'));
+            } else {
+                self::error('De importpreview is verlopen. Upload het bestand opnieuw.');
+                self::render_upload_form();
+            }
         } else {
             self::render_upload_form();
         }
@@ -74,98 +94,97 @@ final class BZV_Admin {
         echo '</div></div>';
     }
 
-    private static function handle_preview(): void {
+    public static function handle_preview_request(): void {
+        if (!current_user_can('edit_posts')) {
+            wp_die('Onvoldoende rechten.');
+        }
         check_admin_referer('bzv_import_preview', 'bzv_nonce');
 
+        $layout = isset($_POST['bzv_layout']) ? sanitize_text_field(wp_unslash($_POST['bzv_layout'])) : '';
+
         if (empty($_FILES['zuivel_file']) || !is_array($_FILES['zuivel_file'])) {
-            self::error('Geen bestand ontvangen.');
-            self::render_upload_form();
-            return;
+            self::redirect_error('Geen bestand ontvangen.', $layout);
         }
 
         $file = $_FILES['zuivel_file'];
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
-            self::error('Het bestand kon niet worden geüpload.');
-            self::render_upload_form();
-            return;
+            $code = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+            self::redirect_error('Het bestand kon niet worden geüpload (uploadcode ' . $code . ').', $layout);
         }
 
         $extension = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
         if (!in_array($extension, ['csv', 'xlsx'], true)) {
-            self::error('Alleen CSV- en XLSX-bestanden worden ondersteund.');
-            self::render_upload_form();
-            return;
+            self::redirect_error('Alleen CSV- en XLSX-bestanden worden ondersteund.', $layout);
         }
 
         try {
             $raw_rows = BZV_File_Reader::read((string) $file['tmp_name'], $extension);
             $rows = BZV_Importer::normalize_rows($raw_rows);
+            if (!$rows) {
+                throw new RuntimeException('Geen geldige verkooppunten gevonden. Controleer het bestand en de kolomnamen.');
+            }
+            $analysis = BZV_Importer::analyze_rows($rows);
         } catch (Throwable $error) {
-            self::error('Bestand kon niet worden gelezen: ' . $error->getMessage());
-            self::render_upload_form();
-            return;
+            self::redirect_error('Bestand kon niet worden gelezen: ' . $error->getMessage(), $layout);
         }
 
-        if (!$rows) {
-            self::error('Geen geldige verkooppunten gevonden. Controleer het bestand en de kolomnamen.');
-            self::render_upload_form();
-            return;
-        }
-
-        $analysis = BZV_Importer::analyze_rows($rows);
         $token = wp_generate_password(24, false, false);
-        set_transient(self::transient_key($token), ['rows' => $rows], HOUR_IN_SECONDS);
-
-        self::render_preview(
-            $analysis,
-            $token,
-            sanitize_file_name((string) $file['name'])
+        set_transient(
+            self::transient_key('preview_' . $token),
+            [
+                'rows' => $rows,
+                'analysis' => $analysis,
+                'filename' => sanitize_file_name((string) $file['name']),
+            ],
+            HOUR_IN_SECONDS
         );
+
+        wp_safe_redirect(self::screen_url_from_layout($layout, [
+            'zuivel_import' => '1',
+            'bzv_preview' => $token,
+        ]));
+        exit;
     }
 
-    private static function handle_import(): void {
+    public static function handle_import_request(): void {
+        if (!current_user_can('edit_posts')) {
+            wp_die('Onvoldoende rechten.');
+        }
         check_admin_referer('bzv_import_run', 'bzv_nonce');
 
+        $layout = isset($_POST['bzv_layout']) ? sanitize_text_field(wp_unslash($_POST['bzv_layout'])) : '';
         $token = isset($_POST['bzv_token']) ? sanitize_text_field(wp_unslash($_POST['bzv_token'])) : '';
-        $key = self::transient_key($token);
+        $key = self::transient_key('preview_' . $token);
         $payload = get_transient($key);
 
-        if (!$payload || empty($payload['rows'])) {
-            self::error('De importpreview is verlopen. Upload het bestand opnieuw.');
-            self::render_upload_form();
-            return;
+        if (!is_array($payload) || empty($payload['rows'])) {
+            self::redirect_error('De importpreview is verlopen. Upload het bestand opnieuw.', $layout);
         }
 
         $deactivate_missing = !empty($_POST['deactivate_missing']);
         $result = BZV_Importer::run($payload['rows'], $deactivate_missing);
         delete_transient($key);
 
-        echo '<div class="notice notice-success inline"><p><strong>Import gereed.</strong> '
-            . (int) $result['created'] . ' nieuw, '
-            . (int) $result['updated'] . ' bijgewerkt, '
-            . (int) $result['unchanged'] . ' ongewijzigd, '
-            . (int) $result['geocoded'] . ' gegeocodeerd'
-            . ($result['geocode_failed'] ? ', ' . (int) $result['geocode_failed'] . ' geocoding mislukt' : '')
-            . ($result['deactivated'] ? ', ' . (int) $result['deactivated'] . ' op concept gezet' : '')
-            . '.</p></div>';
+        $result_token = wp_generate_password(20, false, false);
+        set_transient(
+            self::transient_key('result_' . $result_token),
+            ['result' => $result],
+            10 * MINUTE_IN_SECONDS
+        );
 
-        if ($result['errors']) {
-            echo '<div class="notice notice-warning inline"><p><strong>Aandachtspunten:</strong></p><ul style="list-style:disc;padding-left:24px;">';
-            foreach ($result['errors'] as $message) {
-                echo '<li>' . esc_html($message) . '</li>';
-            }
-            echo '</ul></div>';
-        }
-
-        echo '<p><a class="button button-primary" href="' . esc_url(self::screen_url()) . '">Import sluiten</a> '
-            . '<a class="button" href="' . esc_url(self::screen_url(['zuivel_import' => '1'])) . '">Nog een bestand importeren</a></p>';
+        wp_safe_redirect(self::screen_url_from_layout($layout, [
+            'zuivel_import' => '1',
+            'bzv_result' => $result_token,
+        ]));
+        exit;
     }
 
     private static function render_upload_form(): void {
         ?>
-        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(self::screen_url(['zuivel_import' => '1'])); ?>" style="max-width:900px;">
+        <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="max-width:900px;">
             <?php wp_nonce_field('bzv_import_preview', 'bzv_nonce'); ?>
-            <input type="hidden" name="zuivel_action" value="preview">
+            <input type="hidden" name="action" value="bzv_preview">
+            <input type="hidden" name="bzv_layout" value="<?php echo esc_attr(self::current_layout()); ?>">
             <table class="form-table" role="presentation">
                 <tr>
                     <th scope="row"><label for="zuivel_file">Bestand</label></th>
@@ -196,10 +215,11 @@ final class BZV_Admin {
             . ($missing ? ', ' . $missing . ' eerder geïmporteerd maar nu ontbrekend' : '')
             . '.</p></div>';
 
-        echo '<form method="post" action="' . esc_url(self::screen_url(['zuivel_import' => '1'])) . '">';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bzv_import_run', 'bzv_nonce');
-        echo '<input type="hidden" name="zuivel_action" value="import">';
+        echo '<input type="hidden" name="action" value="bzv_import">';
         echo '<input type="hidden" name="bzv_token" value="' . esc_attr($token) . '">';
+        echo '<input type="hidden" name="bzv_layout" value="' . esc_attr(self::current_layout()) . '">';
 
         echo '<div style="overflow:auto;max-height:560px;border:1px solid #dcdcde;background:#fff;">';
         echo '<table class="widefat striped"><thead><tr><th>Status</th><th>Klant</th><th>Adres</th><th>Postcode</th><th>Plaats</th><th>Match</th></tr></thead><tbody>';
@@ -234,6 +254,42 @@ final class BZV_Admin {
         echo '</form>';
     }
 
+    private static function render_result(array $result): void {
+        echo '<div class="notice notice-success inline"><p><strong>Import gereed.</strong> '
+            . (int) ($result['created'] ?? 0) . ' nieuw, '
+            . (int) ($result['updated'] ?? 0) . ' bijgewerkt, '
+            . (int) ($result['unchanged'] ?? 0) . ' ongewijzigd, '
+            . (int) ($result['geocoded'] ?? 0) . ' gegeocodeerd'
+            . (!empty($result['geocode_failed']) ? ', ' . (int) $result['geocode_failed'] . ' geocoding mislukt' : '')
+            . (!empty($result['deactivated']) ? ', ' . (int) $result['deactivated'] . ' op concept gezet' : '')
+            . '.</p></div>';
+
+        if (!empty($result['errors'])) {
+            echo '<div class="notice notice-warning inline"><p><strong>Aandachtspunten:</strong></p><ul style="list-style:disc;padding-left:24px;">';
+            foreach ($result['errors'] as $message) {
+                echo '<li>' . esc_html($message) . '</li>';
+            }
+            echo '</ul></div>';
+        }
+
+        echo '<p><a class="button button-primary" href="' . esc_url(self::screen_url()) . '">Import sluiten</a> '
+            . '<a class="button" href="' . esc_url(self::screen_url(['zuivel_import' => '1'])) . '">Nog een bestand importeren</a></p>';
+    }
+
+    private static function redirect_error(string $message, string $layout = ''): void {
+        $token = wp_generate_password(20, false, false);
+        set_transient(
+            self::transient_key('error_' . $token),
+            ['message' => $message],
+            10 * MINUTE_IN_SECONDS
+        );
+        wp_safe_redirect(self::screen_url_from_layout($layout, [
+            'zuivel_import' => '1',
+            'bzv_error' => $token,
+        ]));
+        exit;
+    }
+
     private static function is_cpt_list_screen(): bool {
         if (!is_admin()) {
             return false;
@@ -242,10 +298,18 @@ final class BZV_Admin {
         return $screen && $screen->base === 'edit' && $screen->post_type === BZV_Importer::CPT;
     }
 
+    private static function current_layout(): string {
+        return !empty($_GET['layout']) ? sanitize_text_field(wp_unslash($_GET['layout'])) : '';
+    }
+
     private static function screen_url(array $args = []): string {
+        return self::screen_url_from_layout(self::current_layout(), $args);
+    }
+
+    private static function screen_url_from_layout(string $layout, array $args = []): string {
         $query = ['post_type' => BZV_Importer::CPT];
-        if (!empty($_GET['layout'])) {
-            $query['layout'] = sanitize_text_field(wp_unslash($_GET['layout']));
+        if ($layout !== '') {
+            $query['layout'] = $layout;
         }
         return add_query_arg(array_merge($query, $args), admin_url('edit.php'));
     }
