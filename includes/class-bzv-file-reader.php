@@ -254,7 +254,7 @@ final class BZV_File_Reader {
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$element) {
+        if ($element === false) {
             throw new RuntimeException($error_message);
         }
         return $element;
