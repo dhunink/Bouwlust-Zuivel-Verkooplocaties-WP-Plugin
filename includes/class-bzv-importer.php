@@ -9,6 +9,9 @@ final class BZV_Importer {
     private const MANAGED_META = '_zuivel_import_managed';
     private const SOURCE_FINGERPRINT_META = '_zuivel_import_source_fingerprint';
 
+    /** @var array<int,array<string,string>> */
+    private static array $acf_field_keys = [];
+
     public static function normalize_rows(array $raw_rows): array {
         if (count($raw_rows) < 2) {
             return [];
@@ -177,31 +180,32 @@ final class BZV_Importer {
             $touched_ids[] = $post_id;
             update_post_meta($post_id, self::MANAGED_META, '1');
 
-            $existing_import_id = (string) get_field('import_id', $post_id);
+            $existing_import_id = (string) self::get_acf_value('import_id', $post_id);
             $import_id = $row['source_id'] !== ''
                 ? $row['source_id']
                 : ($existing_import_id ?: self::generate_import_id($post_id));
 
-            update_field('address', $row['address'], $post_id);
-            update_field('postal_code', $row['postal_code'], $post_id);
-            update_field('city', $row['city'], $post_id);
-            update_field('import_id', $import_id, $post_id);
+            // ACF adviseert bij nieuwe waarden de field key te gebruiken. Dat zorgt
+            // ook voor de _field_name-referentie die ACF nodig heeft in de editor.
+            self::update_acf_value('address', $row['address'], $post_id);
+            self::update_acf_value('postal_code', $row['postal_code'], $post_id);
+            self::update_acf_value('city', $row['city'], $post_id);
+            self::update_acf_value('import_id', $import_id, $post_id);
 
             $fingerprint = self::address_fingerprint($row);
             $old_fingerprint = (string) get_post_meta($post_id, self::SOURCE_FINGERPRINT_META, true);
-            $location = get_field('location', $post_id);
+            $location = self::get_acf_value('location', $post_id);
             $needs_geocode = $is_new || !$location || $old_fingerprint !== $fingerprint;
 
             if ($needs_geocode) {
                 $geo = self::geocode($row);
                 if (is_wp_error($geo)) {
-                    // Laat bij een gewijzigd adres nooit stilletjes de oude pin op de kaart staan.
-                    update_field('location', null, $post_id);
+                    self::update_acf_value('location', null, $post_id);
                     delete_post_meta($post_id, self::SOURCE_FINGERPRINT_META);
                     $result['geocode_failed']++;
                     $result['errors'][] = $row['customer'] . ': geocoding mislukt (' . $geo->get_error_message() . ').';
                 } else {
-                    update_field('location', $geo, $post_id);
+                    self::update_acf_value('location', $geo, $post_id);
                     update_post_meta($post_id, self::SOURCE_FINGERPRINT_META, $fingerprint);
                     $result['geocoded']++;
                 }
@@ -284,9 +288,9 @@ final class BZV_Importer {
 
     private static function row_matches_post(array $row, int $post_id): bool {
         return self::clean(get_the_title($post_id)) === self::clean($row['customer'])
-            && self::clean((string) get_field('address', $post_id)) === self::clean($row['address'])
-            && self::clean((string) get_field('postal_code', $post_id)) === self::clean($row['postal_code'])
-            && self::clean((string) get_field('city', $post_id)) === self::clean($row['city']);
+            && self::clean((string) self::get_acf_value('address', $post_id)) === self::clean($row['address'])
+            && self::clean((string) self::get_acf_value('postal_code', $post_id)) === self::clean($row['postal_code'])
+            && self::clean((string) self::get_acf_value('city', $post_id)) === self::clean($row['city']);
     }
 
     private static function generate_import_id(int $post_id): string {
@@ -354,6 +358,50 @@ final class BZV_Importer {
         }
 
         return (string) apply_filters('zuivel_import_google_api_key', $key);
+    }
+
+    private static function acf_field_key(string $name, int $post_id): string {
+        if (isset(self::$acf_field_keys[$post_id][$name])) {
+            return self::$acf_field_keys[$post_id][$name];
+        }
+
+        if (!function_exists('acf_get_field_groups') || !function_exists('acf_get_fields')) {
+            return $name;
+        }
+
+        $groups = acf_get_field_groups(['post_id' => $post_id]);
+        foreach ($groups as $group) {
+            $fields = acf_get_fields($group['key']);
+            if (!$fields) {
+                continue;
+            }
+            foreach ($fields as $field) {
+                if (($field['name'] ?? '') === $name && !empty($field['key'])) {
+                    self::$acf_field_keys[$post_id][$name] = (string) $field['key'];
+                    return self::$acf_field_keys[$post_id][$name];
+                }
+            }
+        }
+
+        self::$acf_field_keys[$post_id][$name] = $name;
+        return $name;
+    }
+
+    private static function update_acf_value(string $name, $value, int $post_id): void {
+        update_field(self::acf_field_key($name, $post_id), $value, $post_id);
+    }
+
+    private static function get_acf_value(string $name, int $post_id) {
+        $value = get_field($name, $post_id);
+
+        if (($value === null || $value === false || $value === '') && metadata_exists('post', $post_id, $name)) {
+            $raw = get_post_meta($post_id, $name, true);
+            if ($raw !== '') {
+                return $raw;
+            }
+        }
+
+        return $value;
     }
 
     private static function address_fingerprint(array $row): string {
