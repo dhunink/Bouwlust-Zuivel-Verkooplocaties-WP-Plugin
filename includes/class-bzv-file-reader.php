@@ -43,7 +43,7 @@ final class BZV_File_Reader {
         }
         fclose($handle);
 
-        return $rows;
+        return self::trim_to_header($rows);
     }
 
     private static function maybe_utf8($value): string {
@@ -127,7 +127,7 @@ final class BZV_File_Reader {
             $rows[] = $filled;
         }
 
-        return $rows;
+        return self::trim_to_header($rows);
     }
 
     private static function read_shared_strings(ZipArchive $zip): array {
@@ -209,6 +209,43 @@ final class BZV_File_Reader {
         $target = ltrim((string) $target, '/');
 
         return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
+    }
+
+    private static function trim_to_header(array $rows): array {
+        foreach ($rows as $index => $row) {
+            $normalized = array_map([__CLASS__, 'normalize_header'], $row);
+
+            $has_customer = in_array('klant', $normalized, true)
+                || in_array('customer', $normalized, true)
+                || in_array('verkooppunt', $normalized, true);
+            $has_postal = in_array('postcode', $normalized, true)
+                || in_array('postal code', $normalized, true)
+                || in_array('postalcode', $normalized, true);
+            $has_city = in_array('plaats', $normalized, true)
+                || in_array('city', $normalized, true)
+                || in_array('woonplaats', $normalized, true);
+            $has_address = false;
+
+            foreach ($normalized as $value) {
+                if (in_array($value, ['straat huisnr', 'straat huisnummer', 'straat en huisnummer', 'adres', 'address'], true)) {
+                    $has_address = true;
+                    break;
+                }
+            }
+
+            if ($has_customer && $has_address && $has_postal && $has_city) {
+                return array_slice($rows, $index);
+            }
+        }
+
+        return $rows;
+    }
+
+    private static function normalize_header($value): string {
+        $value = function_exists('remove_accents') ? remove_accents((string) $value) : (string) $value;
+        $value = strtolower(trim($value));
+        $value = (string) preg_replace('/[+_\-.\/]+/u', ' ', $value);
+        return trim((string) preg_replace('/\s+/u', ' ', $value));
     }
 
     private static function load_xml(string $xml, string $error_message): SimpleXMLElement {
