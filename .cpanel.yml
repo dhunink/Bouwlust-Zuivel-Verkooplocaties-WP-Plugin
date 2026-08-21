@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/hoeveb1q/hoevebouwlust.nl/wp-content/plugins/bwlst-zuivel-verkooplocaties/
+    - export DEPLOYPATH=$HOME/hoevebouwlust.nl/wp-content/plugins/bwlst-zuivel-verkooplocaties/
     - /bin/mkdir -p "$DEPLOYPATH"
     - /bin/cp bouwlust-zuivel-verkooplocaties.php "$DEPLOYPATH"
     - /bin/cp -R includes "$DEPLOYPATH"
