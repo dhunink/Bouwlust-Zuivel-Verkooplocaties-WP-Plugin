@@ -29,8 +29,8 @@ final class BZV_File_Reader {
         }
 
         $delimiters = [
-            ','  => substr_count($first, ','),
-            ';'  => substr_count($first, ';'),
+            ',' => substr_count($first, ','),
+            ';' => substr_count($first, ';'),
             "\t" => substr_count($first, "\t"),
         ];
         arsort($delimiters);
@@ -69,34 +69,49 @@ final class BZV_File_Reader {
             $sheet_path = self::first_sheet_path($zip);
             $sheet_xml = $zip->getFromName($sheet_path);
             if ($sheet_xml === false) {
-                throw new RuntimeException('Werkblad kon niet worden gelezen.');
+                throw new RuntimeException('Werkblad kon niet worden gelezen: ' . $sheet_path . '.');
             }
         } finally {
             $zip->close();
         }
 
-        $xml = simplexml_load_string($sheet_xml);
-        if (!$xml) {
-            throw new RuntimeException('Werkblad-XML is ongeldig.');
+        $xml = self::load_xml($sheet_xml, 'Werkblad-XML is ongeldig.');
+        $row_nodes = $xml->xpath('//*[local-name()="sheetData"]/*[local-name()="row"]');
+        if ($row_nodes === false) {
+            throw new RuntimeException('Werkblad bevat geen leesbare rijen.');
         }
 
         $rows = [];
-        foreach ($xml->sheetData->row as $row) {
+        foreach ($row_nodes as $row) {
             $out = [];
-            foreach ($row->c as $cell) {
+            $cells = $row->xpath('./*[local-name()="c"]');
+            if ($cells === false) {
+                continue;
+            }
+
+            foreach ($cells as $cell) {
                 $reference = (string) $cell['r'];
-                preg_match('/([A-Z]+)\d+/', $reference, $match);
-                $column = self::xlsx_col_to_index($match[1] ?? 'A');
+                preg_match('/([A-Z]+)\d+/i', $reference, $match);
+                $column = self::xlsx_col_to_index(strtoupper($match[1] ?? 'A'));
                 $type = (string) $cell['t'];
 
-                if ($type === 's') {
-                    $value = $shared[(int) $cell->v] ?? '';
-                } elseif ($type === 'inlineStr') {
-                    $value = self::flatten_text($cell->is);
+                if ($type === 'inlineStr') {
+                    $inline = $cell->xpath('./*[local-name()="is"]');
+                    $value = $inline ? self::flatten_text($inline[0]) : '';
                 } else {
-                    $value = (string) $cell->v;
+                    $value_nodes = $cell->xpath('./*[local-name()="v"]');
+                    $raw_value = $value_nodes ? (string) $value_nodes[0] : '';
+
+                    if ($type === 's') {
+                        $value = $shared[(int) $raw_value] ?? '';
+                    } elseif ($type === 'b') {
+                        $value = $raw_value === '1' ? '1' : '0';
+                    } else {
+                        $value = $raw_value;
+                    }
                 }
-                $out[$column] = $value;
+
+                $out[$column] = self::maybe_utf8($value);
             }
 
             if (!$out) {
@@ -121,13 +136,14 @@ final class BZV_File_Reader {
             return [];
         }
 
-        $xml = simplexml_load_string($shared_xml);
-        if (!$xml) {
+        $xml = self::load_xml($shared_xml, 'Shared strings konden niet worden gelezen.');
+        $items = $xml->xpath('//*[local-name()="si"]');
+        if ($items === false) {
             return [];
         }
 
         $shared = [];
-        foreach ($xml->si as $item) {
+        foreach ($items as $item) {
             $shared[] = self::flatten_text($item);
         }
         return $shared;
@@ -150,37 +166,61 @@ final class BZV_File_Reader {
         $workbook_xml = $zip->getFromName('xl/workbook.xml');
         $rels_xml = $zip->getFromName('xl/_rels/workbook.xml.rels');
         if ($workbook_xml === false || $rels_xml === false) {
-            throw new RuntimeException('Ongeldige XLSX-structuur.');
+            throw new RuntimeException('Ongeldige XLSX-structuur: workbook of relaties ontbreken.');
         }
 
-        $workbook = simplexml_load_string($workbook_xml);
-        $rels = simplexml_load_string($rels_xml);
-        if (!$workbook || !$rels) {
-            throw new RuntimeException('Ongeldige XLSX-structuur.');
-        }
+        $workbook = self::load_xml($workbook_xml, 'Workbook-XML is ongeldig.');
+        $rels = self::load_xml($rels_xml, 'Workbook-relaties zijn ongeldig.');
 
-        $sheet = $workbook->sheets->sheet[0] ?? null;
-        if (!$sheet) {
+        $sheets = $workbook->xpath('//*[local-name()="sheets"]/*[local-name()="sheet"]');
+        if (!$sheets) {
             throw new RuntimeException('Geen werkblad gevonden.');
         }
 
+        $sheet = $sheets[0];
         $rid_attrs = $sheet->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
-        $rid = (string) $rid_attrs['id'];
-        $target = '';
+        $rid = (string) ($rid_attrs['id'] ?? '');
+        if ($rid === '') {
+            $rid_nodes = $sheet->xpath('./@*[local-name()="id"]');
+            $rid = $rid_nodes ? (string) $rid_nodes[0] : '';
+        }
 
-        foreach ($rels->Relationship as $rel) {
-            if ((string) $rel['Id'] === $rid) {
-                $target = (string) $rel['Target'];
-                break;
+        if ($rid === '') {
+            throw new RuntimeException('Werkblad-ID niet gevonden.');
+        }
+
+        $target = '';
+        $relationships = $rels->xpath('//*[local-name()="Relationship"]');
+        if ($relationships) {
+            foreach ($relationships as $rel) {
+                if ((string) $rel['Id'] === $rid) {
+                    $target = (string) $rel['Target'];
+                    break;
+                }
             }
         }
 
-        if (!$target) {
+        if ($target === '') {
             throw new RuntimeException('Werkblad-relatie niet gevonden.');
         }
 
-        $target = ltrim(str_replace('../', '', $target), '/');
+        $target = str_replace('\\', '/', $target);
+        $target = preg_replace('#^\.\./#', '', $target);
+        $target = ltrim((string) $target, '/');
+
         return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
+    }
+
+    private static function load_xml(string $xml, string $error_message): SimpleXMLElement {
+        $previous = libxml_use_internal_errors(true);
+        $element = simplexml_load_string($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$element) {
+            throw new RuntimeException($error_message);
+        }
+        return $element;
     }
 
     private static function xlsx_col_to_index(string $letters): int {
