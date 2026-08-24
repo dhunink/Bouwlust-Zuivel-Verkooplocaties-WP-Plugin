@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: GP Nested Forms\n"
-"PO-Revision-Date: 2026-08-24 10:45+0200\n"
+"PO-Revision-Date: 2026-08-24 10:51+0200\n"
 "Last-Translator: Hoeve Bouwlust\n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -16,10 +16,14 @@ msgstr ""
 msgid "Add %s"
 msgstr "%s toevoegen"
 
-#: GP Nested Forms empty entries message
+#: GP Nested Forms frontend edit button
 #, php-format
-msgid "There are no %s."
-msgstr "Er zijn nog geen %s toegevoegd."
+msgid "Edit %s"
+msgstr "%s bewerken"
+
+#: GP Nested Forms modal action
+msgid "Cancel"
+msgstr "Annuleren"
 
 #: GP Nested Forms child entry action
 msgid "Edit"
@@ -28,3 +32,71 @@ msgstr "Bewerken"
 #: GP Nested Forms child entry action
 msgid "Delete"
 msgstr "Verwijderen"
+
+#: GP Nested Forms confirmation dialog
+msgid "Are you sure?"
+msgstr "Weet je het zeker?"
+
+#: GP Nested Forms modal action
+msgid "Close"
+msgstr "Sluiten"
+
+#: GP Nested Forms empty entries message
+#, php-format
+msgid "There are no %1$s%2$s.%3$s"
+msgstr "Er zijn nog geen %1$s%2$s%3$s toegevoegd."
+
+#: GP Nested Forms child entry action
+msgid "Duplicate"
+msgstr "Dupliceren"
+
+#: GP Nested Forms screen-reader edit action
+#, php-format
+msgid "Edit %1$s {0} where %2$s is {1}."
+msgstr "Bewerk %1$s {0} waarbij %2$s {1} is."
+
+#: GP Nested Forms screen-reader duplicate action
+#, php-format
+msgid "Duplicate %1$s {0} where %2$s is {1}."
+msgstr "Dupliceer %1$s {0} waarbij %2$s {1} is."
+
+#: GP Nested Forms screen-reader delete action
+#, php-format
+msgid "Delete %1$s {0} where %2$s is {1}."
+msgstr "Verwijder %1$s {0} waarbij %2$s {1} is."
+
+#: GP Nested Forms entry limit message
+#, php-format
+msgid "Maximum number of %s reached."
+msgstr "Het maximale aantal %s is bereikt."
+
+#: GP Nested Forms expanded-list action
+#, php-format
+msgid "View Expanded %s List"
+msgstr "Uitgebreide lijst met %s bekijken"
+
+#: GP Nested Forms entry action
+msgid "View Entry"
+msgstr "Invoer bekijken"
+
+#: GP Nested Forms default singular entry label
+msgid "Entry"
+msgstr "Inzending"
+
+#: GP Nested Forms default plural entry label
+msgid "Entries"
+msgstr "Inzendingen"
+
+#: GP Nested Forms minimum validation message
+#, php-format
+msgid "Please enter a minimum of %1$d %2$s"
+msgstr "Voeg minimaal %1$d %2$s toe"
+
+#: GP Nested Forms maximum validation message
+#, php-format
+msgid "Please enter a maximum of %1$d %2$s"
+msgstr "Voeg maximaal %1$d %2$s toe"
+
+#: GP Nested Forms entries table heading
+msgid "Actions"
+msgstr "Acties"

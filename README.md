@@ -79,9 +79,14 @@ Bij gedeeltelijke fouten wordt de resultaatmelding als waarschuwing weergegeven 
 
 Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen gettextcatalogus voor het textdomain `gp-nested-forms`. De vertaling staat onder `languages/` en blijft daardoor buiten de map van Gravity Perks; updates van GP Nested Forms overschrijven haar niet.
 
-De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, bewerken en verwijderen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
+De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.2.2
+
+- Exacte frontendbronstrings van GP Nested Forms 1.2.33 verwerkt.
+- Ontbrekende vertalingen voor de lege tabel, annuleren en overige invoeracties toegevoegd.
 
 ### 0.2.1
 

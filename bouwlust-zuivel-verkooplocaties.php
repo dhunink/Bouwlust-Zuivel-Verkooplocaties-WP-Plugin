@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Bouwlust Zuivel Verkooplocaties
  * Description: Beheer en periodieke import van zuivel-verkooplocaties naar het ACF-berichttype zuivel_verkooppunt, inclusief Google-geocoding.
- * Version: 0.2.1
+ * Version: 0.2.2
  * Author: Hoeve Bouwlust
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BZV_VERSION', '0.2.1');
+define('BZV_VERSION', '0.2.2');
 define('BZV_PLUGIN_FILE', __FILE__);
 define('BZV_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
