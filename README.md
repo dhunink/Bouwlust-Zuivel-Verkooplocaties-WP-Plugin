@@ -2,6 +2,8 @@
 
 WordPress-plugin voor het beheren en periodiek importeren van zuivel-verkooplocaties op de website van Hoeve Bouwlust.
 
+Daarnaast bevat de plugin de kleine, websitebrede aanpassingen die specifiek bij Hoeve Bouwlust horen. Vanaf versie 0.2.1 omvat dit de Nederlandse frontendvertalingen voor Gravity Perks Nested Forms.
+
 ## Huidige opzet
 
 De plugin sluit aan op de bestaande WordPress/ACF-configuratie:
@@ -73,7 +75,18 @@ Vanaf versie 0.2.0 wordt bij een import opgeslagen:
 
 Bij gedeeltelijke fouten wordt de resultaatmelding als waarschuwing weergegeven in plaats van als volledig geslaagde import.
 
+## Nederlandse GravityWiz-teksten
+
+Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen gettextcatalogus voor het textdomain `gp-nested-forms`. De vertaling staat onder `languages/` en blijft daardoor buiten de map van Gravity Perks; updates van GP Nested Forms overschrijven haar niet.
+
+De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, bewerken en verwijderen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
+
 ## Versies
+
+### 0.2.1
+
+- Nederlandse frontendvertalingen toegevoegd voor Gravity Perks Nested Forms.
+- Vertalingen updatebestendig ondergebracht in de bestaande Bouwlust-plugin.
 
 ### 0.2.0
 

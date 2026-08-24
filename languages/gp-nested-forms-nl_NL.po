@@ -1,0 +1,30 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: GP Nested Forms\n"
+"PO-Revision-Date: 2026-08-24 10:45+0200\n"
+"Last-Translator: Hoeve Bouwlust\n"
+"Language-Team: Dutch\n"
+"Language: nl_NL\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: gp-nested-forms\n"
+
+#: GP Nested Forms frontend button
+#, php-format
+msgid "Add %s"
+msgstr "%s toevoegen"
+
+#: GP Nested Forms empty entries message
+#, php-format
+msgid "There are no %s."
+msgstr "Er zijn nog geen %s toegevoegd."
+
+#: GP Nested Forms child entry action
+msgid "Edit"
+msgstr "Bewerken"
+
+#: GP Nested Forms child entry action
+msgid "Delete"
+msgstr "Verwijderen"
