@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Bouwlust Zuivel Verkooplocaties
- * Description: Beheer en periodieke import van zuivel-verkooplocaties naar het ACF-berichttype zuivel_verkooppunt, inclusief Google-geocoding.
- * Version: 0.2.2
+ * Description: Gecontroleerde BOP-afnemers voor de Pro-kaart, met bestaande Bouwlust-vertalingen en importarchief.
+ * Version: 0.3.0
  * Author: Hoeve Bouwlust
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BZV_VERSION', '0.2.2');
+define('BZV_VERSION', '0.3.0');
 define('BZV_PLUGIN_FILE', __FILE__);
 define('BZV_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
@@ -24,3 +24,7 @@ require_once BZV_PLUGIN_DIR . 'includes/class-bzv-admin.php';
 BZV_Translations::init();
 BZV_ACF_Bridge::init();
 BZV_Admin::init();
+
+require_once BZV_PLUGIN_DIR . 'includes/class-bzv-bop-locations.php';
+BZV_Bop_Locations::init();
+register_deactivation_hook(__FILE__, [BZV_Bop_Locations::class, 'deactivate']);
