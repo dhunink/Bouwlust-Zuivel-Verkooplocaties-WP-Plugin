@@ -54,7 +54,6 @@ def prepare(document):
     marker = markers[0]
     marker['_label'] = 'Afnemer uit BOP'
     marker['looper_consumer'] = True
-    marker['looper_consumer_repeat'] = 'all'
     marker['map_marker_lat'] = '{{dc:looper:field key="latitude"}}'
     marker['map_marker_lng'] = '{{dc:looper:field key="longitude"}}'
     marker['map_marker_content'] = '{{dc:looper:field key="popupHtml"}}'
