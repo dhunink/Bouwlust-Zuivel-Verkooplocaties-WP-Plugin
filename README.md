@@ -1,10 +1,90 @@
 # Bouwlust Zuivel Verkooplocaties – WordPress Plugin
 
-WordPress-plugin voor het beheren en periodiek importeren van zuivel-verkooplocaties op de website van Hoeve Bouwlust.
+WordPress-plugin voor de gecontroleerde BOP-afnemerslijst op hoevebouwlust.nl. De nieuwe kaart haalt haar gegevens uitsluitend uit BOP Postkantoor. De eerdere importer blijft beschikbaar als archiefgereedschap en voedt deze kaart niet.
 
 Daarnaast bevat de plugin de kleine, websitebrede aanpassingen die specifiek bij Hoeve Bouwlust horen. Vanaf versie 0.2.1 omvat dit de Nederlandse frontendvertalingen voor Gravity Perks Nested Forms.
 
-## Huidige opzet
+## BOP-koppeling (0.3.0)
+
+De plugin haalt `/v1/customer-locations` elke 15 minuten server-side op en bewaart één
+volledig gecontroleerde snapshot in een duurzame WordPress-option (geen transient).
+Een geldige lege lijst wist alle afnemermarkers. Een fout bewaart de vorige snapshot
+zolang de BOP-publicatie jonger is dan 48 uur. Na die grens worden de opgeslagen locaties
+verwijderd en verschijnt een tijdelijke beschikbaarheidsmelding. Een HTTP 304 verlengt
+de BOP-publicatietijd niet. Gelijktijdige synchronisaties gebruiken een database-lock.
+
+Kies onder **Tools → BOP afnemers** het bestaande Postkantoor-profiel uit API Connections.
+Alleen het profielnummer wordt opgeslagen; de bestaande websitecredential blijft in GC API
+Alchemist en wordt uitsluitend op de server gelezen. Alleen gepubliceerde/private profielen
+met HTTPS en een Postkantoor-bearertoken zijn selecteerbaar. Een profielwisseling wist de
+oude snapshot. Gebruik een profiel met `customer-locations:read`.
+
+Als alternatief kun je uitsluitend op de server, buiten deze repository, twee
+configuratieconstanten plaatsen. Deze gaan voor op een geselecteerd profiel:
+
+```php
+define('BOP_CUSTOMER_LOCATIONS_URL', 'https://<postkantoor-host>');
+define('BOP_CUSTOMER_LOCATIONS_TOKEN', '<websitecredential met customer-locations:read>');
+```
+
+De URL bevat geen `/v1`-pad. Gebruik HTTPS en een reader-credential; de plugin volgt geen
+redirects met de credential. De browser krijgt geen token, interne klantnamen of orders.
+**Gereedschap → BOP afnemers** toont status, laatste publicatie en de knop **Lijst nu ophalen**.
+Dat scherm vereist beheerrechten en de knop een WordPress-nonce. Er worden geen e-mails verstuurd.
+
+### Pro Map
+
+In de bestaande Map op pagina 11088 kies je Looper Provider **BOP afnemers**. De provider
+is geregistreerd via Themeco's [Looper API](https://theme.co/docs/looper-api). Laat één
+Map Marker alle resultaten consumeren en gebruik:
+
+| Pro-veld | Waarde |
+| --- | --- |
+| Latitude | `{{dc:looper:field key="latitude"}}` |
+| Longitude | `{{dc:looper:field key="longitude"}}` |
+| Content | `{{dc:looper:field key="popupHtml"}}` |
+
+`popupHtml` bevat uitsluitend escaped naam, adres en een veilige Google Maps-link.
+De vaste Hoeve Bouwlust-marker blijft een afzonderlijk element. Plaats `[bop_afnemers]`
+in een Text-element onder de kaart voor dezelfde lijst als leesbare adressen.
+Gebruik voor de kaart een Maps JavaScript-key met website/referrerrestricties; Google
+Geocoding gebeurt uitsluitend in BOP met een afzonderlijke serversleutel.
+
+`tools/prepare-pro-map.py` bereidt op basis van een actuele native Pro-export de exacte
+wijziging voor. Het script verstuurt niets. Het bewaart overige pagina-inhoud, de vaste
+boerderijmarker en de bestaande zichtbaarheid voor alleen beheerders. De native Pro
+`document-update`-route verzorgt bij toepassing validatie en de eigen opslag/cachehooks.
+Lees de pagina vlak vóór toepassen opnieuw, vergelijk met de bron en bewaar een privébackup.
+Publiceer het onderdeel pas na controle met werkelijke goedgekeurde BOP-locaties.
+De publieksintroductie moet over **Hier vind je** en afnemers spreken; de oude tekst die
+alle afnemers als winkels/verkooppunten aanduidt hoort niet bij de definitieve publicatie.
+
+### Cache en planning
+
+De kaartpagina (standaard 11088, wijzigbaar via `bzv_bop_locations_page_ids`) is uitgesloten
+van volledige WP Rocket-paginacache. De plugin vernieuwt de Rocket-configuratie eenmalig
+per pluginversie en wist de betrokken pagina bij wijzigingen/verloop. De snapshotcache
+zorgt dat paginaweergave zelf geen Postkantoorverzoek nodig heeft. Een upstream CDN/proxy
+moet de `no-cache`-headers respecteren; controleer dat bij uitrol. Redis mag de duurzame
+option versnellen, maar is niet de enige opslag van de laatst geldige lijst.
+
+WP-Cron wordt door bezoeken gestart. Configureer een echte server-cron voor vaste intervallen
+zonder bezoek. De weergave controleert de 48-uursgrens ook zelf en toont nooit bewust een
+verlopen snapshot. De HTML-opslag/cache van de pagina moet deze grens eveneens respecteren.
+
+### Testen en uitrollen
+
+- `php tests/bop-locations.php`: validatie, gehele vervanging, geldige lege lijst, 304,
+  fouten, generatievolgorde, verval, pagina-cache, HTML-escaping en synchronisatielock.
+- `python3 tests/pro-map.py`: native Pro-structuur, behoud overige inhoud/zichtbaarheid/
+  boerderijmarker en herhaalbaarheid.
+- Installeer ZIP met mapnaam `bwlst-zuivel-verkooplocaties` om de bestaande plugin bij te werken.
+  De Nederlandse GravityWiz-vertalingen blijven onderdeel van hetzelfde pakket.
+- Rol eerst BOP/Postkantoor uit; configureer hun Google- en Firestore-vervalinstellingen.
+  Installeer dan deze plugin, stel de reader-verbinding in, haal de lijst op en controleer
+  de Pro-kaart terwijl zij nog alleen voor beheerders zichtbaar is.
+
+## Eerdere importopzet (archief)
 
 De plugin sluit aan op de bestaande WordPress/ACF-configuratie:
 
@@ -82,6 +162,17 @@ Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen
 De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.3.1
+
+- Hergebruik van een bestaand API Connections-profiel zonder sleutels te kopiëren.
+- Beveiligde profielkeuze in het afnemersscherm, met eigen WordPress-nonce.
+
+### 0.3.0
+
+- BOP Postkantoor als bron voor gecontroleerde afnemers.
+- Pro-provider, adreslijst, beheerscherm en veilige snapshot-/cacheverversing.
+- Oude importgegevens zijn geen bron voor de BOP-kaart.
 
 ### 0.2.2
 
