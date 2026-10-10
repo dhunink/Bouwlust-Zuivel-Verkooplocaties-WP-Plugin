@@ -20,6 +20,7 @@ final class BZV_Bop_Locations {
         add_shortcode('bop_afnemers', [__CLASS__, 'address_list']);
         add_action('admin_menu', [__CLASS__, 'menu']);
         add_action('admin_post_bzv_bop_refresh', [__CLASS__, 'refresh']);
+        add_action('admin_post_bzv_bop_connection', [__CLASS__, 'save_connection']);
         // Cached pages must not outlive the BOP publication. In addition to cron purges,
         // the map/list page bypasses full-page caches. The durable data cache still avoids API calls on visits.
         add_action('template_redirect', [__CLASS__, 'page_cache_policy']);
@@ -70,8 +71,24 @@ final class BZV_Bop_Locations {
         if ($urls) { rocket_clean_files($urls); }
     }
     private static function config(): array {
-        return [defined('BOP_CUSTOMER_LOCATIONS_URL') ? rtrim((string) BOP_CUSTOMER_LOCATIONS_URL, '/') : '',
-            defined('BOP_CUSTOMER_LOCATIONS_TOKEN') ? (string) BOP_CUSTOMER_LOCATIONS_TOKEN : ''];
+        if (defined('BOP_CUSTOMER_LOCATIONS_URL') || defined('BOP_CUSTOMER_LOCATIONS_TOKEN')) {
+            return [defined('BOP_CUSTOMER_LOCATIONS_URL') ? rtrim((string) BOP_CUSTOMER_LOCATIONS_URL, '/') : '',
+                defined('BOP_CUSTOMER_LOCATIONS_TOKEN') ? (string) BOP_CUSTOMER_LOCATIONS_TOKEN : ''];
+        }
+        return self::profile_config(absint(get_option('bzv_bop_connection_profile', 0)));
+    }
+    private static function profile_config(int $id): array {
+        $class = '\\GC_API_Alchemist\\Connection_Profiles\\Connection_Profile';
+        if (!$id || !class_exists($class)) { return ['', '']; }
+        $profile = $class::get($id);
+        if (!$profile || !in_array($profile->get_status(), ['publish', 'private'], true) || $profile->get_auth_type() !== 'bearer') { return ['', '']; }
+        $token = $profile->get_auth_config_value('token', '');
+        $base = rtrim($profile->get_base_url(), '/');
+        $url = wp_parse_url($base);
+        if (!is_string($token) || !preg_match('/^bop_post_v1\.[A-Za-z0-9_-]{3,64}\.[a-f0-9]{64}$/D', $token) ||
+            !$url || ($url['scheme'] ?? '') !== 'https' || empty($url['host']) ||
+            isset($url['user']) || isset($url['pass']) || isset($url['query']) || isset($url['fragment'])) { return ['', '']; }
+        return [$base, $token];
     }
     private static function status(string $message, bool $success = false): void {
         $old = get_option(self::STATUS, []);
@@ -213,6 +230,25 @@ final class BZV_Bop_Locations {
         wp_safe_redirect(admin_url('tools.php?page=bop-afnemers'));
         exit;
     }
+    public static function save_connection(): void {
+        if (!current_user_can('manage_options')) { wp_die('Geen toegang.', '', ['response' => 403]); }
+        check_admin_referer('bzv_bop_connection');
+        if (defined('BOP_CUSTOMER_LOCATIONS_URL') || defined('BOP_CUSTOMER_LOCATIONS_TOKEN')) { wp_die('De verbinding wordt beheerd in de serverconfiguratie.'); }
+        $id = absint($_POST['connection_profile'] ?? 0);
+        if (!self::profile_config($id)[1]) { wp_die('Kies een geldig Postkantoor-profiel met een websitecredential.'); }
+        if (!add_option(self::LOCK, time(), '', false)) { wp_die('Er loopt een controle. Probeer het over een minuut opnieuw.'); }
+        try {
+            if (absint(get_option('bzv_bop_connection_profile', 0)) !== $id) {
+                update_option('bzv_bop_connection_profile', $id, false);
+                delete_option(self::SNAPSHOT);
+                wp_clear_scheduled_hook(self::EXPIRE);
+                self::purge();
+            }
+        } finally { delete_option(self::LOCK); }
+        self::sync();
+        wp_safe_redirect(admin_url('tools.php?page=bop-afnemers'));
+        exit;
+    }
     public static function admin(): void {
         if (!current_user_can('manage_options')) { return; }
         self::expire();
@@ -225,6 +261,20 @@ final class BZV_Bop_Locations {
         }
         if (!empty($status['attemptedAt'])) { echo '<p>Laatste controle: ' . esc_html(wp_date('d-m-Y H:i', $status['attemptedAt'])) . '.</p>'; }
         echo '<p>Automatische controle: elke 15 minuten. Zonder nieuwe BOP-publicatie vervalt de lijst na 48 uur.</p>';
+        $class = '\\GC_API_Alchemist\\Connection_Profiles\\Connection_Profile';
+        if (!defined('BOP_CUSTOMER_LOCATIONS_URL') && !defined('BOP_CUSTOMER_LOCATIONS_TOKEN') && class_exists($class)) {
+            echo '<h2>Postkantoor-verbinding</h2><p>Kies het bestaande websiteprofiel. De sleutel blijft in API Connections opgeslagen en wordt hier niet getoond of gekopieerd.</p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_bop_connection">';
+            wp_nonce_field('bzv_bop_connection');
+            echo '<label for="bop-connection-profile">Verbindingsprofiel</label> <select id="bop-connection-profile" name="connection_profile"><option value="0">Kies een verbinding</option>';
+            foreach ($class::get_all() as $profile) {
+                if (!self::profile_config($profile->get_id())[1]) { continue; }
+                echo '<option value="' . (int) $profile->get_id() . '"' . selected((int) get_option('bzv_bop_connection_profile', 0), $profile->get_id(), false) . '>' . esc_html($profile->get_title()) . '</option>';
+            }
+            echo '</select>';
+            submit_button('Verbinding opslaan en controleren');
+            echo '</form>';
+        }
         echo '<p><a href="https://erf.bwlst.nl/apps/bop/beheer/afnemers?view=review" target="_blank" rel="noopener noreferrer">Afnemers controleren in BOP</a></p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_bop_refresh">';
         wp_nonce_field('bzv_bop_refresh');

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Bouwlust Zuivel Verkooplocaties
  * Description: Gecontroleerde BOP-afnemers voor de Pro-kaart, met bestaande Bouwlust-vertalingen en importarchief.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: Hoeve Bouwlust
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BZV_VERSION', '0.3.0');
+define('BZV_VERSION', '0.3.1');
 define('BZV_PLUGIN_FILE', __FILE__);
 define('BZV_PLUGIN_DIR', plugin_dir_path(__FILE__));
 

@@ -13,7 +13,14 @@ zolang de BOP-publicatie jonger is dan 48 uur. Na die grens worden de opgeslagen
 verwijderd en verschijnt een tijdelijke beschikbaarheidsmelding. Een HTTP 304 verlengt
 de BOP-publicatietijd niet. Gelijktijdige synchronisaties gebruiken een database-lock.
 
-Plaats uitsluitend op de server, buiten deze repository, de twee configuratieconstanten:
+Kies onder **Tools → BOP afnemers** het bestaande Postkantoor-profiel uit API Connections.
+Alleen het profielnummer wordt opgeslagen; de bestaande websitecredential blijft in GC API
+Alchemist en wordt uitsluitend op de server gelezen. Alleen gepubliceerde/private profielen
+met HTTPS en een Postkantoor-bearertoken zijn selecteerbaar. Een profielwisseling wist de
+oude snapshot. Gebruik een profiel met `customer-locations:read`.
+
+Als alternatief kun je uitsluitend op de server, buiten deze repository, twee
+configuratieconstanten plaatsen. Deze gaan voor op een geselecteerd profiel:
 
 ```php
 define('BOP_CUSTOMER_LOCATIONS_URL', 'https://<postkantoor-host>');
@@ -155,6 +162,11 @@ Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen
 De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.3.1
+
+- Hergebruik van een bestaand API Connections-profiel zonder sleutels te kopiëren.
+- Beveiligde profielkeuze in het afnemersscherm, met eigen WordPress-nonce.
 
 ### 0.3.0
 
