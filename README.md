@@ -62,7 +62,7 @@ bezoek. Bestaande backupretentie hoort bij het websitebeheer; backups zijn geen
 bron voor de kaart.
 
 De implementatie volgt de [Places UI Kit-documentatie](https://developers.google.com/maps/documentation/javascript/places-ui-kit/place-search)
-en de [Geocoding EEA-richtlijnen](https://developers.google.com/maps/documentation/geocoding/eea-faq).
+en de [Geocoding EEA-richtlijnen](https://developers.google.com/maps/comms/eea/geocoding).
 PDOK/BAG levert alleen onafhankelijke adresvoorstellen, geen bewijs dat een
 onderneming op dat adres is gevestigd.
 
