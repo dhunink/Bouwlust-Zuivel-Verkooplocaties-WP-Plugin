@@ -1,10 +1,96 @@
 # Bouwlust Zuivel Verkooplocaties – WordPress Plugin
 
-WordPress-plugin voor de gecontroleerde BOP-afnemerslijst op hoevebouwlust.nl. De nieuwe kaart haalt haar gegevens uitsluitend uit BOP Postkantoor. De eerdere importer blijft beschikbaar als archiefgereedschap en voedt deze kaart niet.
+WordPress-plugin voor de gecontroleerde BOP-afnemerslijst op hoevebouwlust.nl. BOP Postkantoor bepaalt welke afnemers actief zijn; WordPress beheert de gecontroleerde openbare locatiegegevens. De eerdere importer blijft beschikbaar als archiefgereedschap en voedt deze kaart niet.
 
 Daarnaast bevat de plugin de kleine, websitebrede aanpassingen die specifiek bij Hoeve Bouwlust horen. Vanaf versie 0.2.1 omvat dit de Nederlandse frontendvertalingen voor Gravity Perks Nested Forms.
 
-## BOP-koppeling (0.3.0)
+## WordPress-controle (0.4.0)
+
+BOP bepaalt de activiteit uit leverdatums, historische pakbonnen én toekomstige
+bestellingen. Postkantoor levert een private, volledige lijst via
+`GET /v1/customer-directory`. WordPress geeft iedere afnemer een vaste controlelink.
+Onder **Gereedschap → BOP afnemers** kan een beheerder de voorgestelde vestiging,
+het adres en de kaartpositie controleren en bewust goedkeuren. Inloggen bij
+WordPress volstaat; een VPN is niet nodig. Een klik op de mailknop publiceert niets.
+
+- Bij openen zoekt Google Places UI Kit automatisch op de bedrijfsnaam. Er zijn
+  maximaal drie voorstellen. Het eerste voorstel krijgt alvast een kaartpositie.
+- Open adresgegevens komen van BOP, de beheerder of PDOK/BAG. Een nabijgelegen
+  adres is slechts een voorstel: controleer vooral het huisnummer en eventuele
+  toevoeging. Google-bedrijfsgegevens blijven in het Google-widget.
+- De beheerder kan zoeken, het adres aanpassen, de positie opnieuw opzoeken,
+  goedkeuren, als concept bewaren of een bestaande vermelding intrekken.
+- Alleen actieve, goedgekeurde locaties verschijnen in de bestaande Pro-provider
+  `bop-afnemers` en shortcode `[bop_afnemers]`. De oude importlijst voedt die niet.
+- BOP-synchronisatie overschrijft nooit de door een beheerder gecontroleerde naam
+  of adresgegevens. Expliciete klantkoppelingen uit BOP behouden de controlelink;
+  een onduidelijke splitsing/samenvoeging vraagt opnieuw controle.
+- Na 48 uur zonder verse BOP-publicatie verdwijnt de openbare lijst. Een 304
+  verlengt die termijn niet. Archivering in BOP verbergt de locatie; een bestaande
+  goedkeuring kan bij terugkeer behouden blijven als de positie nog actueel is.
+
+### Meldingen en Google-instellingen
+
+Alle actuele WordPress-gebruikers met de rol **administrator** zijn standaard
+ontvanger. Dubbele e-mailadressen krijgen één bericht. Dennis heeft automatische
+afnemercontroles expliciet uitgezonderd van zijn communicatiegrens. De eerste
+import wordt gebundeld in één kort bericht per beheerder; nieuwe controles krijgen
+later een nieuwe melding. Meldingen staan uit totdat de koppeling en Google klaar
+zijn. Testen gebruiken uitsluitend lokale maildubbels.
+
+Een geaccepteerde `wp_mail`-aanroep bewijst alleen overdracht aan de mailvoorziening,
+niet bezorging in de inbox. Afgewezen overdrachten worden maximaal drie keer
+geprobeerd, minstens vijftien minuten uit elkaar. Bij een onderbroken overdracht
+verschijnt een beheermelding; alleen een bewuste actie probeert die opnieuw.
+
+Gebruik twee **aparte WordPress-sleutels** in het bestaande Google-project:
+
+1. Browser: Maps JavaScript API + Places UI Kit, HTTP-referrerbeperking tot
+   `https://hoevebouwlust.nl/*` (en alleen indien gebruikt `https://www.hoevebouwlust.nl/*`).
+2. Server: uitsluitend Geocoding API, beperkt tot de werkelijk geverifieerde
+   uitgaande IP-adressen van de WordPress-host. De BOP-serverbeperking is hiervoor
+   niet geschikt. Sleutels invoeren via het beveiligde instellingenformulier;
+   geen sleutels in Git, mail, Pro-elementen of deze documentatie.
+3. Bestaand Google map-ID kan worden hergebruikt. De serversleutel wordt nooit
+   naar de browser gestuurd. De browserkey is openbaar maar referrerbeperkt.
+
+Google-coördinaten worden uiterlijk na 28 dagen verwijderd, met ververspogingen
+vanaf dag 27. Een gewijzigde positie trekt de goedkeuring in en vraagt opnieuw
+controle. Place IDs en de eigen openbare gegevens blijven bewaard. Configureer een
+echte cron om elke vijftien minuten due WordPress-events uit te voeren, ook zonder
+bezoek. Bestaande backupretentie hoort bij het websitebeheer; backups zijn geen
+bron voor de kaart.
+
+De implementatie volgt de [Places UI Kit-documentatie](https://developers.google.com/maps/documentation/javascript/places-ui-kit/place-search)
+en de [Geocoding EEA-richtlijnen](https://developers.google.com/maps/documentation/geocoding/eea-faq).
+PDOK/BAG levert alleen onafhankelijke adresvoorstellen, geen bewijs dat een
+onderneming op dat adres is gevestigd.
+
+### Migratie en controle
+
+1. Installeer de Postkantoor-release met scopes `customer-directory:publish` voor
+   de bestaande BOP-client en `customer-directory:read` voor de WordPress-client.
+   De bestaande sleutelprofielen blijven behouden.
+2. Installeer de bijbehorende BOP-release via het releasecentrum. Zet
+   `BopPostOffice__PublishCustomerDirectoryEnabled=true` en
+   `CustomerLocations__ReviewInWordPress=true`; herstart volgens de releaseprocedure.
+3. Installeer plugin 0.4.0 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
+   route staat standaard uit; bestaande instellingen/vertalingen blijven behouden.
+4. Kies het bestaande API Connections-profiel, vul de WordPress-Googlekeys in en
+   activeer de WordPress-controle. Vernieuw de lijst en controleer een echte
+   locatie via het scherm. Activeer meldingen met **Alle WordPress-beheerders**.
+5. Controleer de echte Pro-kaart met minstens één door een beheerder goedgekeurde
+   locatie vóór het kaartonderdeel voor bezoekers wordt gepubliceerd. De bestaande
+   Pro-markers en shortcode hoeven voor deze gegevenswissel niet aangepast te worden.
+
+Aanvullende controles: `php tests/afnemer-state.php` en
+`php tests/afnemer-workflow.php` testen identiteiten, goedkeuringen, verlopen data,
+Google/PDOK-grenzen, beheerrechten, mailherkansingen en de bestaande Pro-uitvoer.
+Bij rollback naar 0.3.1 eerst meldingen uitzetten; lokale WordPress-beoordelingen
+blijven bewaard maar de oude versie leest uitsluitend de oude BOP-publicatie.
+Daarom geen oude lege feed als succesvolle kaartmigratie presenteren.
+
+## Eerdere BOP-koppeling (0.3.x; alleen wanneer WordPress-controle uitstaat)
 
 De plugin haalt `/v1/customer-locations` elke 15 minuten server-side op en bewaart één
 volledig gecontroleerde snapshot in een duurzame WordPress-option (geen transient).
@@ -47,8 +133,8 @@ Map Marker alle resultaten consumeren en gebruik:
 `popupHtml` bevat uitsluitend escaped naam, adres en een veilige Google Maps-link.
 De vaste Hoeve Bouwlust-marker blijft een afzonderlijk element. Plaats `[bop_afnemers]`
 in een Text-element onder de kaart voor dezelfde lijst als leesbare adressen.
-Gebruik voor de kaart een Maps JavaScript-key met website/referrerrestricties; Google
-Geocoding gebeurt uitsluitend in BOP met een afzonderlijke serversleutel.
+Gebruik voor de kaart een Maps JavaScript-key met website/referrerrestricties; De oude 0.3.x-route gebruikt Google
+Geocoding in BOP; versie 0.4.0 verplaatst die controle naar WordPress.
 
 `tools/prepare-pro-map.py` bereidt op basis van een actuele native Pro-export de exacte
 wijziging voor. Het script verstuurt niets. Het bewaart overige pagina-inhoud, de vaste
@@ -162,6 +248,12 @@ Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen
 De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.4.0
+
+- Locatievoorstellen, controle en publicatie in WordPress, zonder VPN.
+- Automatische, gebundelde meldingen aan alle WordPress-beheerders.
+- Private BOP-activiteitslijst, blijvende controlelinks en gecontroleerde Pro-markers.
 
 ### 0.3.1
 

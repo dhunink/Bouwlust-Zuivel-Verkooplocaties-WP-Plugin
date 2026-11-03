@@ -65,19 +65,19 @@ final class BZV_Bop_Locations {
         }
         return array_values(array_unique($uris));
     }
-    private static function purge(): void {
+    public static function purge(): void {
         if (!function_exists('rocket_clean_files')) { return; }
         $urls = array_values(array_filter(array_map('get_permalink', self::page_ids())));
         if ($urls) { rocket_clean_files($urls); }
     }
-    private static function config(): array {
+    public static function config(): array {
         if (defined('BOP_CUSTOMER_LOCATIONS_URL') || defined('BOP_CUSTOMER_LOCATIONS_TOKEN')) {
             return [defined('BOP_CUSTOMER_LOCATIONS_URL') ? rtrim((string) BOP_CUSTOMER_LOCATIONS_URL, '/') : '',
                 defined('BOP_CUSTOMER_LOCATIONS_TOKEN') ? (string) BOP_CUSTOMER_LOCATIONS_TOKEN : ''];
         }
         return self::profile_config(absint(get_option('bzv_bop_connection_profile', 0)));
     }
-    private static function profile_config(int $id): array {
+    public static function profile_config(int $id): array {
         $class = '\\GC_API_Alchemist\\Connection_Profiles\\Connection_Profile';
         if (!$id || !class_exists($class)) { return ['', '']; }
         $profile = $class::get($id);
@@ -97,6 +97,7 @@ final class BZV_Bop_Locations {
     }
 
     public static function sync(): void {
+        if (class_exists('BZV_Afnemer_Reviews') && BZV_Afnemer_Reviews::enabled()) { BZV_Afnemer_Reviews::sync(); return; }
         // add_option is a database-backed exclusive lock, including with a persistent object cache.
         if (!add_option(self::LOCK, time(), '', false)) {
             $lock = (int) get_option(self::LOCK, 0);
@@ -153,6 +154,7 @@ final class BZV_Bop_Locations {
         return isset($snapshot['publishedTimestamp']) && $snapshot['publishedTimestamp'] > time() - self::MAX_AGE;
     }
     public static function expire(): void {
+        if (class_exists('BZV_Afnemer_Reviews') && BZV_Afnemer_Reviews::enabled()) { BZV_Afnemer_Reviews::expire(); return; }
         $snapshot = get_option(self::SNAPSHOT, null);
         if (is_array($snapshot) && !self::is_fresh($snapshot)) {
             // Delete cached Google coordinates too, rather than retaining an expired hidden list forever.
@@ -200,20 +202,26 @@ final class BZV_Bop_Locations {
     }
 
     public static function looper($unused = [], $args = []): array {
-        self::expire();
-        $snapshot = get_option(self::SNAPSHOT, null);
-        if (!is_array($snapshot) || !self::is_fresh($snapshot)) { return []; }
+        if (class_exists('BZV_Afnemer_Reviews') && BZV_Afnemer_Reviews::enabled()) {
+            $locations = BZV_Afnemer_Reviews::locations();
+        } else {
+            self::expire();
+            $snapshot = get_option(self::SNAPSHOT, null);
+            if (!is_array($snapshot) || !self::is_fresh($snapshot)) { return []; }
+            $locations = $snapshot['locations'];
+        }
         return array_map(static function ($item) {
             $item['mapsUrl'] = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($item['latitude'] . ',' . $item['longitude']);
             $item['popupHtml'] = '<strong>' . esc_html($item['name']) . '</strong><br>' . esc_html($item['address']) . '<br>' .
                 esc_html($item['postalCode'] . ' ' . $item['city']) . '<br><a href="' . esc_url($item['mapsUrl']) . '" target="_blank" rel="noopener noreferrer">Bekijk in Google Maps</a>';
             return $item;
-        }, $snapshot['locations']);
+        }, $locations);
     }
     public static function address_list(): string {
         $items = self::looper();
         if (!$items) {
-            $snapshot = get_option(self::SNAPSHOT, null);
+            $snapshot = class_exists('BZV_Afnemer_Reviews') && BZV_Afnemer_Reviews::enabled()
+                ? (BZV_Afnemer_State::fresh(BZV_Afnemer_Reviews::state(), time()) ? [] : null) : get_option(self::SNAPSHOT, null);
             return '<p class="bop-afnemers-empty">' . (is_array($snapshot) ? 'Er zijn op dit moment geen afnemers om te tonen.' : 'De lijst met afnemers is tijdelijk niet beschikbaar.') . '</p>';
         }
         $html = '<ul class="bop-afnemers">';
@@ -239,6 +247,7 @@ final class BZV_Bop_Locations {
         if (!add_option(self::LOCK, time(), '', false)) { wp_die('Er loopt een controle. Probeer het over een minuut opnieuw.'); }
         try {
             if (absint(get_option('bzv_bop_connection_profile', 0)) !== $id) {
+                if (class_exists('BZV_Afnemer_Reviews')) { BZV_Afnemer_Reviews::connection_changed(); }
                 update_option('bzv_bop_connection_profile', $id, false);
                 delete_option(self::SNAPSHOT);
                 wp_clear_scheduled_hook(self::EXPIRE);
@@ -250,6 +259,7 @@ final class BZV_Bop_Locations {
         exit;
     }
     public static function admin(): void {
+        if (class_exists('BZV_Afnemer_Admin')) { BZV_Afnemer_Admin::render(); return; }
         if (!current_user_can('manage_options')) { return; }
         self::expire();
         $snapshot = get_option(self::SNAPSHOT, null);
