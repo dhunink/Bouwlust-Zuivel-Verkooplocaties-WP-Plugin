@@ -98,21 +98,40 @@ final class BZV_Afnemer_Reviews {
             wp_cache_delete(self::LOCK, 'options'); self::$lock = null;
         }
     }
-    private static function persist(array $state): void {
+    private static function assert_lock(): void {
         global $wpdb;
         $owner = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::LOCK));
         if (self::$lock === null || $owner !== self::$lock || (int) explode(':', self::$lock)[0] <= time() - 120) {
             throw new RuntimeException('De verwerking duurde te lang. Probeer het opnieuw.');
         }
+    }
+    private static function persist(array $state): array {
+        self::assert_lock();
+        // Commit UUIDs before creating posts so retries recover partial work instead of duplicating it.
         if ($state !== self::state() && !update_option(self::STATE, $state, false)) { throw new RuntimeException('Opslaan is niet gelukt. Probeer het opnieuw.'); }
+        if (class_exists('BZV_Afnemer_Posts')) {
+            $state = BZV_Afnemer_Posts::prepare($state, static fn() => self::assert_lock());
+            self::assert_lock();
+            if ($state !== self::state() && !update_option(self::STATE, $state, false)) { throw new RuntimeException('De CPT-koppelingen konden niet worden opgeslagen.'); }
+            BZV_Afnemer_Posts::sync($state, static fn() => self::assert_lock());
+        }
+        return $state;
+    }
+    public static function reconcile_post_edits(): void {
+        if (!class_exists('BZV_Afnemer_Posts') || !BZV_Afnemer_Posts::has_edits(self::state())) { return; }
+        if (!self::acquire()) { BZV_Bop_Locations::purge(); return; }
+        try { self::persist(BZV_Afnemer_Posts::import_edits(self::state())); }
+        catch (RuntimeException $e) { self::status($e->getMessage()); }
+        finally { self::release(); BZV_Bop_Locations::purge(); }
     }
     private static function status(string $text, bool $ok = false): void {
         update_option('bzv_afnemer_status', ['at' => time(), 'ok' => $ok, 'message' => $text], false);
     }
     public static function sync(): void {
+        self::reconcile_post_edits();
         if (!self::enabled() || !self::acquire()) { return; }
         try {
-            $state = BZV_Afnemer_State::expire(self::state(), time()); self::persist($state);
+            $state = self::persist(BZV_Afnemer_State::expire(self::state(), time()));
             [$base, $token] = BZV_Bop_Locations::config();
             $url = wp_parse_url($base);
             if (!$token || preg_match('/[\r\n]/', $token) || !$url || ($url['scheme'] ?? '') !== 'https' || empty($url['host']) ||
@@ -128,7 +147,7 @@ final class BZV_Afnemer_Reviews {
             if ($code === 200) {
                 $directory = BZV_Afnemer_State::validate(wp_remote_retrieve_body($response), time());
                 $state = BZV_Afnemer_State::merge($state, $directory, 'wp_generate_uuid4');
-                self::persist($state);
+                $state = self::persist($state);
                 wp_clear_scheduled_hook('bzv_bop_locations_expire');
                 wp_schedule_single_event($directory['publishedTimestamp'] + BZV_Afnemer_State::MAX_AGE, 'bzv_bop_locations_expire');
             } elseif ($code !== 304 || !BZV_Afnemer_State::fresh($state, time())) {
@@ -138,10 +157,10 @@ final class BZV_Afnemer_Reviews {
             $settings = self::settings();
             if ($settings['emailEnabled']) {
                 $state = BZV_Afnemer_State::queue_notices($state, self::recipients(), time(), 'wp_generate_uuid4');
-                self::persist($state);
+                $state = self::persist($state);
             }
             self::status('Afnemerslijst bijgewerkt. ' . count(array_filter($state['records'], static fn($r) => $r['active'])) . ' actieve afnemers.', true);
-        } catch (RuntimeException $e) { self::status($e->getMessage()); }
+        } catch (RuntimeException $e) { self::status($e->getMessage()); return; }
         finally { self::release(); BZV_Bop_Locations::purge(); }
         self::refresh_coordinates();
         self::deliver_notices();
@@ -149,9 +168,13 @@ final class BZV_Afnemer_Reviews {
     public static function expire(): void {
         if (!self::acquire()) { return; }
         try { self::persist(BZV_Afnemer_State::expire(self::state(), time())); }
+        catch (RuntimeException $e) { self::status($e->getMessage()); }
         finally { self::release(); BZV_Bop_Locations::purge(); }
     }
-    public static function locations(): array { return BZV_Afnemer_State::public_locations(self::state(), time()); }
+    public static function locations(): array {
+        try { return class_exists('BZV_Afnemer_Posts') ? BZV_Afnemer_Posts::locations(self::state()) : BZV_Afnemer_State::public_locations(self::state(), time()); }
+        catch (RuntimeException $e) { return []; }
+    }
     public static function review_url(string $id = ''): string {
         return admin_url('tools.php?page=bop-afnemers' . ($id === '' ? '' : '&review=' . rawurlencode($id)));
     }
@@ -162,10 +185,14 @@ final class BZV_Afnemer_Reviews {
         if (!BZV_Afnemer_State::fresh($state, time()) || !$state['records'][$id]['active']) {
             throw new RuntimeException('Deze afnemer is niet meer actief of de BOP-lijst moet eerst worden vernieuwd.');
         }
+        if (class_exists('BZV_Afnemer_Posts') && !BZV_Afnemer_Posts::reviewable($state['records'][$id])) {
+            throw new RuntimeException('De gekoppelde post is gewijzigd of ontbreekt. Vernieuw de lijst en open de controle opnieuw.');
+        }
         return $state['records'][$id];
     }
     public static function handle(string $action, array $input) {
         if (!self::permission()) { return new WP_Error('forbidden', 'Geen toegang.', ['status' => 403]); }
+        self::reconcile_post_edits();
         if (!self::enabled()) { return new WP_Error('disabled', 'De WordPress-controle is nog niet geactiveerd.', ['status' => 409]); }
         $id = (string) ($input['id'] ?? ''); $revision = (int) ($input['revision'] ?? 0);
         try {
@@ -222,8 +249,7 @@ final class BZV_Afnemer_Reviews {
                     }
                 }
                 self::persist($state);
-            } finally { self::release(); }
-            BZV_Bop_Locations::purge();
+            } finally { self::release(); BZV_Bop_Locations::purge(); }
             return ['ok' => true, 'url' => self::review_url(), 'message' => $action === 'withdraw' ? 'De vermelding is ingetrokken.' : 'Opgeslagen.'];
         } catch (RuntimeException $e) { return new WP_Error('afnemer_review', $e->getMessage(), ['status' => 409]); }
     }
@@ -249,8 +275,8 @@ final class BZV_Afnemer_Reviews {
                     if ($changed) { $r['approvedAt'] = null; $r['approvedBy'] = null; $r['deferred'] = false; $r['reviewVersion']++; }
                 }
                 unset($r); self::persist(BZV_Afnemer_State::expire($state, time()));
-            } finally { self::release(); }
-            BZV_Bop_Locations::purge();
+            } catch (RuntimeException $e) { self::status($e->getMessage()); return; }
+            finally { self::release(); BZV_Bop_Locations::purge(); }
             // Bound each cron request; subsequent runs handle the remaining locations.
 
         }

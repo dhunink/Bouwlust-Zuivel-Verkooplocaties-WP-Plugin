@@ -64,9 +64,10 @@ final class BZV_Afnemer_Admin {
         $state = BZV_Afnemer_Reviews::state(); $s = BZV_Afnemer_Reviews::settings();
         $fresh = BZV_Afnemer_State::fresh($state, time());
         $pending = array_filter($state['records'], static fn($r) => $r['active'] && !$r['approvedAt'] && !$r['deferred']);
-        $published = BZV_Afnemer_State::public_locations($state, time());
+        $published = BZV_Afnemer_Reviews::locations();
         $id = (string) wp_unslash($_GET['review'] ?? '');
         echo '<div class="wrap bzv-review"><header><p class="bzv-eyebrow">Hoeve Bouwlust · Hier vind je</p><h1>Afnemers</h1><p>Controleer de voorgestelde vestiging en geef de locatie vrij voor de website.</p></header>';
+        echo '<p>Elke afnemer heeft een eigen verkooppunt-post. Goedkeuring publiceert die post en ververst de kaart op de zuivelpagina. <a href="' . esc_url(admin_url('edit.php?post_type=zuivel_verkooppunt')) . '">Alle verkooppunt-posts bekijken</a></p>';
         if (!$s['enabled']) { echo '<div class="bzv-notice">De nieuwe controle staat nog uit. Stel hieronder de koppeling en Google in en activeer daarna de WordPress-controle.</div>'; }
         elseif (!$fresh) { echo '<div class="bzv-notice" role="status">De actuele BOP-lijst ontbreekt. Locaties worden pas getoond en goedgekeurd zodra die weer beschikbaar is.</div>'; }
         if ($id !== '') {
@@ -96,6 +97,7 @@ final class BZV_Afnemer_Admin {
         $public = array_intersect_key($r, array_flip(['id', 'revision', 'name', 'address', 'postalCode', 'city', 'countryCode', 'latitude', 'longitude', 'placeId', 'coordinateSource', 'locatedAt', 'approvedAt']));
         if (!BZV_Afnemer_State::coordinates($r, time())) { $public['latitude'] = $public['longitude'] = null; }
         echo '<p><a href="' . esc_url(BZV_Afnemer_Reviews::review_url()) . '">← Alle afnemers</a></p><h2 class="bzv-name">' . esc_html($r['name']) . '</h2>';
+        if (!empty($r['postId'])) { echo '<p><a href="' . esc_url(get_edit_post_link($r['postId'])) . '">Bijbehorende verkooppunt-post bekijken</a></p>'; }
         if (!$editable) { echo '<p class="bzv-notice">Deze afnemer is niet actief of de BOP-lijst is verouderd. De locatie kan nu niet worden gepubliceerd.</p>'; }
         if ($r['identityConflict']) { echo '<p class="bzv-notice">De klantkoppeling in BOP is gewijzigd. Controleer opnieuw of dit de juiste vestiging is.</p>'; }
         echo '<script type="application/json" id="bzv-record">' . wp_json_encode($public, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';

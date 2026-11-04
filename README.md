@@ -4,6 +4,47 @@ WordPress-plugin voor de gecontroleerde BOP-afnemerslijst op hoevebouwlust.nl. B
 
 Daarnaast bevat de plugin de kleine, websitebrede aanpassingen die specifiek bij Hoeve Bouwlust horen. Vanaf versie 0.2.1 omvat dit de Nederlandse frontendvertalingen voor Gravity Perks Nested Forms.
 
+## Afnemers en bestaande verkooppunt-posts (0.5.0)
+
+**Gereedschap → BOP afnemers** is het controlescherm voor het bestaande posttype
+`zuivel_verkooppunt`. Iedere ontvangen BOP-afnemer krijgt één blijvende CPT-post.
+De CPT-lijst krijgt een kolom **BOP-controle** met status en een directe controlelink;
+het controlescherm linkt terug naar de bijbehorende post.
+
+- Nieuwe posts beginnen als concept. Expliciet goedkeuren schrijft de eigen naam,
+  `address`, `postal_code`, `city` en het ACF Google Map-veld `location`, controleert
+  de opgeslagen waarden en publiceert daarna de post.
+- De bestaande Pro-provider `bop-afnemers` en `[bop_afnemers]` lezen voortaan deze
+  gecontroleerde CPT/ACF-waarden. Ze tonen alleen gepubliceerde, actieve en
+  goedgekeurde posts met een verse BOP-beoordeling en geldige kaartpositie.
+- Goedkeuren, intrekken, archiveren of wijzigen ververst met `rocket_clean_files`
+  de zuivelpagina (11088). Er is geen volledige websitecacheflush nodig. De
+  bestaande uitsluiting van paginacache beschermt ook tegen verlopen gegevens.
+- Een wijziging van naam, adres of kaartpositie via de gewone CPT-editor wordt
+  overgenomen als voorstel en vereist opnieuw controle. Alleen op **Publiceren**
+  klikken in die editor keurt de BOP-locatie niet goed. Een ongewijzigd opgeslagen
+  locatieveld of wijziging van andere postinhoud behoudt de goedkeuring.
+- Archiveren in BOP of intrekken in WordPress zet de post op concept. Terugkeer
+  in BOP hergebruikt dezelfde post; een nog geldige eerdere goedkeuring blijft
+  bruikbaar. Een post in de prullenbak wordt nooit automatisch hersteld.
+
+Bij de eerste koppeling kan één bestaande importpost worden hergebruikt wanneer
+de exacte oorspronkelijke naam overeenkomt met een BOP-bronidentiteit of alias.
+Onduidelijke meervoudige matches stoppen met een zichtbare fout. De oude import
+bepaalt nooit de activiteit. Eigen adresgegevens kunnen als voorstel dienen;
+oude Google-coördinaten zonder bekende leeftijd worden verwijderd en gelden niet
+als goedkeuring. Gekoppelde posts vallen daarna buiten de oude importer.
+
+De koppeling wordt opgeslagen op review-UUID, met herstel bij gedeeltelijke
+opslagfouten. ACF wordt via de bestaande veldsleutels geschreven, zodat ook de
+native ACF-editor dezelfde velden ziet. Een mislukte veldschrijfopdracht laat de
+post als concept staan en levert geen kaartpunt op. Direct gewijzigde of
+verlopen waarden worden ook vóór de volgende cron-run niet door de provider getoond.
+
+`php tests/afnemer-posts.php` controleert deze keten met lokale WordPress- en
+ACF-dubbels, inclusief herhaalbaarheid, bronkoppelingen, native bewerkingen,
+opslagfouten, verlopen coördinaten en de gerichte WP Rocket-verversing.
+
 ## Ontvangers kiezen (0.4.1)
 
 Onder **Gereedschap → BOP afnemers → Instellingen en meldingen** kies je alle
@@ -102,7 +143,7 @@ onderneming op dat adres is gevestigd.
 2. Installeer de bijbehorende BOP-release via het releasecentrum. Zet
    `BopPostOffice__PublishCustomerDirectoryEnabled=true` en
    `CustomerLocations__ReviewInWordPress=true`; herstart volgens de releaseprocedure.
-3. Installeer plugin 0.4.1 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
+3. Installeer plugin 0.5.0 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
    route staat standaard uit; bestaande instellingen/vertalingen blijven behouden.
 4. Kies het bestaande API Connections-profiel, vul de WordPress-Googlekeys in en
    activeer de WordPress-controle. Vernieuw de lijst en controleer een echte
@@ -276,6 +317,16 @@ Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen
 De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.5.0
+
+- Eén bestaande of nieuwe CPT-post per BOP-afnemer, met ACF-locatievelden.
+- Controle, expliciete publicatie, Pro-kaart en gerichte WP Rocket-verversing gekoppeld.
+- Native CPT-wijzigingen vragen hercontrole; archivering en verlopen punten verdwijnen.
+
+### 0.4.1
+
+- Ontvangers selecteren uit actuele WordPress-gebruikers, inclusief beperkte WPVibe-REST-routes.
 
 ### 0.4.0
 

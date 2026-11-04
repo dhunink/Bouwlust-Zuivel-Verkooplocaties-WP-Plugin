@@ -146,6 +146,10 @@ final class BZV_Importer {
             }
 
             $post_id = (int) $item['post_id'];
+            if ($post_id && get_post_meta($post_id, '_bzv_afnemer_id', true)) {
+                $result['errors'][] = $row['customer'] . ': gekoppeld aan BOP; gebruik de afnemercontrole om deze post te wijzigen.';
+                continue;
+            }
             $is_new = !$post_id;
 
             if ($is_new) {
