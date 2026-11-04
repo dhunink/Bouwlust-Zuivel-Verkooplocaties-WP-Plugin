@@ -143,7 +143,7 @@ onderneming op dat adres is gevestigd.
 2. Installeer de bijbehorende BOP-release via het releasecentrum. Zet
    `BopPostOffice__PublishCustomerDirectoryEnabled=true` en
    `CustomerLocations__ReviewInWordPress=true`; herstart volgens de releaseprocedure.
-3. Installeer plugin 0.5.0 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
+3. Installeer plugin 0.5.1 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
    route staat standaard uit; bestaande instellingen/vertalingen blijven behouden.
 4. Kies het bestaande API Connections-profiel, vul de WordPress-Googlekeys in en
    activeer de WordPress-controle. Vernieuw de lijst en controleer een echte
@@ -317,6 +317,10 @@ Voor een Nederlandstalige website (`nl_NL` of `nl_BE`) laadt de plugin een eigen
 De catalogus vertaalt de frontendteksten voor toevoegen, een lege producttabel, annuleren, bewerken, verwijderen, dupliceren en de relevante invoer- en validatiemeldingen. De loader wordt vanaf WordPress `init` geactiveerd en doet voor andere talen niets.
 
 ## Versies
+
+### 0.5.1
+
+- BOP-controlekolom blijft zichtbaar bij een bestaande Admin Columns Pro-weergave.
 
 ### 0.5.0
 

@@ -18,6 +18,8 @@ final class BZV_Afnemer_Posts {
         add_action('shutdown', [BZV_Afnemer_Reviews::class, 'reconcile_post_edits']);
         add_action('add_meta_boxes_' . self::TYPE, [__CLASS__, 'meta_box']);
         add_filter('manage_' . self::TYPE . '_posts_columns', [__CLASS__, 'columns']);
+        // Admin Columns Pro replaces the saved screen headings at priority 200.
+        add_filter('manage_edit-' . self::TYPE . '_columns', [__CLASS__, 'columns'], 201);
         add_action('manage_' . self::TYPE . '_posts_custom_column', [__CLASS__, 'column'], 10, 2);
     }
     private static function fields(): array {
