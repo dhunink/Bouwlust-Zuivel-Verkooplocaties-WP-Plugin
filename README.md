@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.5
+# Bouwlust Zuivel Verkooplocaties — 0.6.6
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
@@ -33,10 +33,19 @@ ACF verzorgt de zoekfunctie. Admin Columns Pro beheert de kolom **BOP-status**:
 een aangepast veld `_bop_active`, type Selecteer, keuzes `1 = Actieve afnemer` en
 `0 = Inactieve afnemer`. Filteren, slim filteren en sorteren staan aan; inline/bulk
 bewerken staan uit. Combineer Actieve afnemer met Concepten om locaties af te werken.
-De plugin voegt geen dubbele kolom toe als deze beheerde kolom bestaat.
+Ook **Tonen op de openbare kaart** is een native Admin Columns ACF-kolom,
+toegevoegd via de tab Admin Columns bij het ACF-veld. Deze heeft standaard
+inline-/bulkbewerking, sorteren en slim filteren (Filter toevoegen → Tonen op
+de openbare kaart). De plugin registreert of rendert zelf geen lijstkolommen.
 De alleen-lezen editorstatus geeft daarnaast verlopen bron, onvolledige synchronisatie,
-uitleg, brondatum en zichtbaarheid op de website aan. Zonder beheerde kolom blijft
-de oorspronkelijke gedetailleerde statuskolom beschikbaar.
+uitleg, brondatum en zichtbaarheid op de website aan.
+
+Nieuwe importconcepten slaan de ACF-standaardwaarde Ja direct op; daarmee hebben
+de editor, de kaart en Admin Columns dezelfde waarde. Bestaande afnemers zonder
+opgeslagen keuze blijven voor de kaart standaard Ja. Admin Columns toont een
+lege cel totdat die standaard via native ACF/Admin Columns wordt opgeslagen.
+Een eventuele eenmalige aanvulling selecteert uitsluitend ontbrekende waarden;
+bewust gekozen Nee mag nooit worden overschreven.
 
 BOP-verversingen overschrijven de door een beheerder ingevulde naam, het adres en
 kaartpunt niet. De bronidentiteit en expliciete BOP-aliassen houden de CPT-koppeling

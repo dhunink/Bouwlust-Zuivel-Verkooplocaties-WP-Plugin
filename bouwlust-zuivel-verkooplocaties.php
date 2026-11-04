@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Bouwlust Zuivel Verkooplocaties
  * Description: BOP-afnemers als WordPress-posts met bestaande ACF-locaties, Pro-kaart en Bouwlust-vertalingen.
- * Version: 0.6.5
+ * Version: 0.6.6
  * Author: Hoeve Bouwlust
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BZV_VERSION', '0.6.5');
+define('BZV_VERSION', '0.6.6');
 define('BZV_PLUGIN_FILE', __FILE__);
 define('BZV_PLUGIN_DIR', plugin_dir_path(__FILE__));
 

@@ -15,9 +15,6 @@ final class BZV_Native {
         foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) { add_action($hook, [__CLASS__, 'meta_changed'], 30, 4); }
         add_action('before_delete_post', [__CLASS__, 'purge']);
         add_action('trashed_post', [__CLASS__, 'purge']);
-        // Let Admin Columns own its configured BOP-status column; keep the native fallback.
-        add_filter('manage_edit-' . self::TYPE . '_columns', static function ($columns) { if (!in_array('BOP-status', $columns, true)) { $columns['bzv_bop'] = 'BOP-status'; } return $columns; }, 201);
-        add_action('manage_' . self::TYPE . '_posts_custom_column', [__CLASS__, 'column'], 10, 2);
         add_action('add_meta_boxes_' . self::TYPE, [__CLASS__, 'instructions']);
         add_action('admin_notices', [__CLASS__, 'notice']);
         add_action('init', [__CLASS__, 'register_looper']);
@@ -149,9 +146,6 @@ final class BZV_Native {
         $stamp = get_option(BZV_Postoffice::SNAPSHOT, [])['publishedTimestamp'] ?? 0;
         if ($stamp) { echo '<p>BOP-brongegevens: ' . esc_html(wp_date('d-m-Y H:i', $stamp)) . '.</p>'; }
         echo '<p>Zet <strong>Tonen op de openbare kaart</strong> op Nee voor afnemers zonder openbare verkooplocatie. Voor zichtbaarheid: kies Ja, controleer het Google-adres en klik op <strong>Publiceren</strong>. Een concept blijft verborgen. De BOP-status wordt automatisch bijgewerkt en is hier niet te wijzigen.</p>';
-    }
-    public static function column(string $column, int $id): void {
-        if ($column === 'bzv_bop') { echo esc_html(self::source_status($id)[0]); }
     }
     public static function purge($id = null): void {
         if ($id && get_post_type((int) $id) !== self::TYPE) { return; }

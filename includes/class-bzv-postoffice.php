@@ -107,8 +107,12 @@ final class BZV_Postoffice {
                 self::meta($id, '_bop_source_id', $customer['customerId']);
                 $identities = array_values(array_unique(array_filter([...((array) get_post_meta($id, '_bop_identities', true)), $customer['customerId'], ...$customer['aliases']])));
                 self::meta($id, '_bop_identities', $identities);
-                // Initialise once; later BOP refreshes never overwrite the editor's address or map.
+                // Initialise once; later BOP refreshes never overwrite the editor's local fields.
                 if (!get_post_meta($id, '_bop_initialized', true)) {
+                    if (isset($fields['show_on_map']) && get_post_meta($id, 'show_on_map', true) === '') {
+                        update_field($fields['show_on_map'], '1', $id);
+                        if (get_post_meta($id, 'show_on_map', true) !== '1') { throw new RuntimeException('De standaard kaartkeuze kon niet worden opgeslagen.'); }
+                    }
                     foreach (['address' => 'address', 'postal_code' => 'postalCode', 'city' => 'city'] as $name => $source) {
                         update_field($fields[$name], $customer[$source], $id);
                         if ((string) get_post_meta($id, $name, true) !== $customer[$source]) { throw new RuntimeException('De eerste adresvelden konden niet worden opgeslagen.'); }

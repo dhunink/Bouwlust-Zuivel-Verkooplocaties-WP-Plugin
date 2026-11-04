@@ -32,6 +32,7 @@ foreach ([['customers', [$directory['customers'][0], $directory['customers'][0]]
 $directory['customers'][0]['address'] = 'Dorpsstraat 12'; $directory['customers'][0]['postalCode'] = '1234AB'; $directory['customers'][0]['city'] = 'Testdorp';
 $result = BZV_Postoffice::sync(true); $postId = array_key_first($posts);
 check($result['ok'] && $result['created'] === 1 && count($posts) === 1 && get_post_status($postId) === 'draft', 'First import creates exactly one native draft.');
+check(get_post_meta($postId, 'show_on_map') === '1' && get_post_meta($postId, '_show_on_map') === 'field_6aeb36d3db858', 'New imports persist the native ACF default so Admin Columns can display and filter it.');
 check(get_post_meta($postId, '_address') === 'field_6a87537d43248' && !get_post_meta($postId, 'location'), 'Native ACF references are written; no coordinates or approvals are fabricated.');
 check(count($mails) === 1 && str_contains($mails[0]['html'], 'post.php?post=' . $postId) && !str_contains($mails[0]['html'], 'bop-afnemers'), 'Selected users with a shared email get one short notice linking to the native editor.');
 BZV_Postoffice::sync(true); check(count($posts) === 1 && count($mails) === 1, 'Repeated import is idempotent, including mail.');
@@ -55,7 +56,8 @@ $purged = []; wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(get_post_status($postId) === 'publish' && count(BZV_Native::looper()) === 1 && $purged === [['https://example.test/zuivel/']], 'Native Publish exposes the ACF point and invalidates the target WP Rocket page.');
 check(get_post_meta($postId, 'address') === 'Dorpsstraat 12' && get_post_meta($postId, 'postal_code') === '1234 AB' && get_post_meta($postId, 'city') === 'Testdorp', 'Saving derives existing list columns from the canonical map.');
 check(BZV_Native::website_status($postId) === 'Zichtbaar op de zuivelkaart', 'Read-only website status reflects actual published marker eligibility.');
-check(BZV_Native::show_on_map($postId), 'Missing visibility metadata preserves existing approved locations.');
+delete_post_meta($postId, 'show_on_map');
+check(BZV_Native::show_on_map($postId) && count(BZV_Native::looper()) === 1, 'Missing legacy visibility metadata preserves existing approved locations.');
 $purged = []; update_field('field_6aeb36d3db858', '0', $postId);
 check(!BZV_Native::looper() && !str_contains(BZV_Native::address_list(), 'Dorpsstraat') && get_post_status($postId) === 'publish', 'Opt-out hides marker and public address without unpublishing the customer.');
 check($purged === [['https://example.test/zuivel/']] && str_contains(BZV_Native::website_status($postId), 'staat uit'), 'Visibility changes purge the target page and explain the hidden state.');
