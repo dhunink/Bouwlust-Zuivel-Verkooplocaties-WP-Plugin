@@ -3,7 +3,7 @@
 const ABSPATH = __DIR__;
 const HOUR_IN_SECONDS = 3600;
 const MINUTE_IN_SECONDS = 60;
-const BZV_VERSION = '0.6.2';
+const BZV_VERSION = '0.6.3';
 const BOP_CUSTOMER_LOCATIONS_URL = 'https://postoffice.example.test';
 const BOP_CUSTOMER_LOCATIONS_TOKEN = 'test-only-not-a-credential';
 class WP_Error { public function __construct(public $code, public $message, public $data = []) {} public function get_error_message() { return $this->message; } }

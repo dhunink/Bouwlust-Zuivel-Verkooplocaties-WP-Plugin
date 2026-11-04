@@ -45,6 +45,7 @@ $map = ['address' => 'Dorpsstraat 12, 1234 AB Testdorp, Nederland', 'street_name
 update_field('field_6a8755b152cb6', $map, $postId);
 check(BZV_Native::source_status($postId)[0] === 'Actieve afnemer' && BZV_Native::website_status($postId) === 'Verborgen — nog niet gepubliceerd', 'BOP activity is distinct from native publication.');
 foreach ($acfFields as $field) { check((BZV_Native::prepare_field($field) === false) === ($field['name'] !== 'location'), 'Only the native map remains editable; derived address and import-ID are hidden.'); }
+check(BZV_Native::prepare_field(['name' => 'acf[field_6a87537d43248]', '_name' => 'address', 'key' => 'field_6a87537d43248']) === false, 'ACF prefixes field names before prepare_field; key matching still hides the input.');
 check(BZV_Native::prepare_field(['name' => 'address', 'key' => 'unrelated_field']) !== false, 'Other ACF forms retain their own address fields.');
 update_post_meta($postId, 'import_id', 'original-id');
 check(BZV_Native::protect_import_id('forged-id', $postId, []) === 'original-id', 'Hidden import-ID is also protected from submitted ACF edits.');

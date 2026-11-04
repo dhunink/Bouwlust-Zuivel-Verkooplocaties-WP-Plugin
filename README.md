@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.2
+# Bouwlust Zuivel Verkooplocaties — 0.6.3
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.

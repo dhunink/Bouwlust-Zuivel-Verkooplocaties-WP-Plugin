@@ -52,8 +52,9 @@ final class BZV_Native {
             is_finite((float) $value['lat']) && is_finite((float) $value['lng']) && abs((float) $value['lat']) <= 90 && abs((float) $value['lng']) <= 180;
     }
     public static function prepare_field($field) {
-        if (in_array($field['name'], ['address', 'postal_code', 'city', 'import_id'], true) &&
-            ($field['key'] ?? '') === (self::fields()[$field['name']] ?? null)) { return false; }
+        // ACF prefixes the rendered name (acf[field_...]); match its stable field key.
+        $hidden = array_intersect_key(self::fields(), array_flip(['address', 'postal_code', 'city', 'import_id']));
+        if (in_array($field['key'] ?? '', $hidden, true)) { return false; }
         return $field;
     }
     public static function protect_import_id($value, $id, $field) {
