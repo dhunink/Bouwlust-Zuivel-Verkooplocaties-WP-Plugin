@@ -1,0 +1,131 @@
+[
+    {
+        "key": "ui_options_page_bzv_connection",
+        "title": "BOP-koppeling",
+        "active": true,
+        "page_title": "BOP-koppeling",
+        "menu_slug": "bop-koppeling",
+        "parent_slug": "options-general.php",
+        "advanced_configuration": 1,
+        "menu_title": "BOP-koppeling",
+        "redirect": false,
+        "capability": "manage_options",
+        "data_storage": "options",
+        "post_id": "",
+        "autoload": 0,
+        "update_button": "Instellingen opslaan",
+        "updated_message": "BOP-instellingen opgeslagen."
+    },
+    {
+        "key": "group_bzv_connection",
+        "title": "Postkantoor en meldingen",
+        "active": true,
+        "position": "normal",
+        "style": "default",
+        "label_placement": "top",
+        "instruction_placement": "label",
+        "show_in_rest": 0,
+        "location": [
+            [
+                {
+                    "param": "options_page",
+                    "operator": "==",
+                    "value": "bop-koppeling"
+                }
+            ]
+        ],
+        "fields": [
+            {
+                "key": "field_bzv_settings",
+                "label": "",
+                "name": "bzv_connection",
+                "type": "group",
+                "required": 0,
+                "layout": "block",
+                "sub_fields": [
+                    {
+                        "key": "field_bzv_profile",
+                        "label": "Verbindingsprofiel",
+                        "name": "profile",
+                        "type": "post_object",
+                        "required": 1,
+                        "post_type": [
+                            "gcapi_conn_profile"
+                        ],
+                        "return_format": "id",
+                        "ui": 1,
+                        "multiple": 0,
+                        "instructions": "De verbinding en sleutel beheer je onder Formulieren → API Connections."
+                    },
+                    {
+                        "key": "field_bzv_automatic",
+                        "label": "Automatisch importeren",
+                        "name": "automatic",
+                        "type": "true_false",
+                        "required": 0,
+                        "ui": 1,
+                        "default_value": 0,
+                        "instructions": "Elke 15 minuten de afnemers vanuit BOP bijwerken."
+                    },
+                    {
+                        "key": "field_bzv_email",
+                        "label": "E-mailmeldingen",
+                        "name": "email",
+                        "type": "true_false",
+                        "required": 0,
+                        "ui": 1,
+                        "default_value": 0,
+                        "instructions": "Meld de geselecteerde gebruikers dat er nieuwe afnemers klaarstaan voor controle."
+                    },
+                    {
+                        "key": "field_bzv_recipients",
+                        "label": "Ontvangers",
+                        "name": "recipients",
+                        "type": "user",
+                        "required": 0,
+                        "role": [],
+                        "multiple": 1,
+                        "allow_null": 1,
+                        "return_format": "id",
+                        "instructions": "Selecteer WordPress-gebruikers. Dit verleent geen extra rechten; voor controle en publicatie blijven hun bestaande WordPress-rechten gelden."
+                    },
+                    {
+                        "key": "field_bzv_page",
+                        "label": "Pagina met de openbare kaart",
+                        "name": "page",
+                        "type": "post_object",
+                        "required": 1,
+                        "post_type": [
+                            "page"
+                        ],
+                        "return_format": "id",
+                        "ui": 1,
+                        "multiple": 0,
+                        "instructions": "De cache van deze pagina wordt ververst wanneer afnemers wijzigen."
+                    }
+                ]
+            },
+            {
+                "key": "field_bzv_connection_help",
+                "label": "Locatiecontrole",
+                "name": "",
+                "type": "message",
+                "required": 0,
+                "message": "Afnemers controleer je in de gewone WordPress-lijst, met het bestaande ACF Google-kaartveld. Google gebruikt de bestaande ACF-sleutel, of de sleutel uit Gravity Forms → Instellingen → Autocomplete.",
+                "new_lines": "br",
+                "esc_html": 1
+            },
+            {
+                "key": "field_bzv_import_actions",
+                "label": "Importstatus en controle",
+                "name": "",
+                "type": "message",
+                "required": 0,
+                "message": "",
+                "new_lines": "br",
+                "esc_html": 1,
+                "instructions": "Deze acties gebruiken de opgeslagen instellingen. Sla wijzigingen eerst op."
+            }
+        ]
+    }
+]

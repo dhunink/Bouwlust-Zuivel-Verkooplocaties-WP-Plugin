@@ -1,118 +1,104 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.6
+# Bouwlust Zuivel Verkooplocaties — 0.7.0
 
-BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
-volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
+BOP bepaalt de afnemers en hun activiteit. Postkantoor levert de volledige private
+lijst. WordPress beheert de lokale locatie, kaartkeuze en bewuste publicatie.
 
-## Gewone WordPress-werkwijze
+## Standaard beheer
 
-Nieuwe afnemers worden concepten van het bestaande CPT `zuivel_verkooppunt`.
-Open **Zuivel-verkooppunten**, controleer de naam en kies de juiste vestiging in het
-bestaande ACF Google Map-veld (`location`). Klik bewust op **Publiceren**.
-Het gekozen kaartveld bevat het adres en de coördinaten; de drie losse adresvelden
-en het import-ID zijn verborgen. Het import-ID is bovendien via ACF niet te wijzigen.
-Adreskolommen worden uit de kaart afgeleid; ontbrekende optionele Google-onderdelen
-blokkeren publicatie niet zolang het kaartveld een adres en geldige positie bevat. Concept opslaan publiceert
-niets. De oude aparte controlepagina verwijst voortaan naar deze CPT-lijst.
+- **ACF Pro** beheert de optiespagina **Instellingen → BOP-koppeling**,
+  het API Connections-profiel, automatische import, meldingen, de meervoudige
+  WordPress-gebruikerskeuze en de pagina waarvan de cache moet worden ververst.
+  Alleen beheerders met `manage_options` kunnen de instellingen wijzigen.
+- **ACF Google Map** (`location`) beheert het volledige openbare adres en punt.
+  Een bestaande ACF-sleutel blijft behouden; anders gebruikt de kleine adapter
+  de bestaande sleutel uit GravityWiz Address Autocomplete.
+- **ACF true_false** (`show_on_map`) beheert Ja/Nee voor de openbare kaart.
+  Bij Nee blijft de afnemer in WordPress en is geocoderen niet verplicht.
+- **ACF Message** toont BOP-status, website-status en een referentieadres alleen
+  ter informatie. De actuele berekening blijft onderdeel van de BOP-koppeling.
+- **Admin Columns Pro** beheert alle lijstkolommen, sortering en slimme filters.
+  Het adres komt rechtstreeks uit het Maps-veld. BOP-status (`_bop_active`) is
+  alleen-lezen; de ACF-kaartkeuze is met native inline-/bulkbewerking aanpasbaar.
+- **Pro** beheert de popup en openbare adressenlijst met gewone Loopers en
+  Dynamic Content. Er is geen eigen popup-HTML of `[bop_afnemers]`-shortcode meer.
+- **WP Rocket** beheert de vaste cache-uitzondering en Always Purge-configuratie.
+  De adapter ververst ook na imports en relevante metadata-/geldigheidswijzigingen.
+- **WordPress** beheert CPT-posts, concepten, publiceren, prullenbak en cron.
+  **Gravity SMTP** verzorgt de overdracht en logging van de automatische mails.
 
-De native ACF Ja/Nee-schakelaar **Tonen op de openbare kaart** (`show_on_map`)
-staat standaard op Ja. Kies Nee voor afnemers zonder openbare verkooplocatie:
-de post blijft in WordPress, maar kaart én openbare adreslijst slaan hem over.
-Bij Nee is een Google-locatie niet verplicht. Opnieuw tonen vereist nog steeds
-een actuele actieve BOP-afnemer, een geldige locatie en een gepubliceerde post.
-De alleen-lezen Website-status vermeldt wanneer de schakelaar uitstaat.
-BOP-imports bewaren deze lokale keuze. Het veld wordt in de bestaande ACF-groep
-beheerd; er is geen aparte formulier- of opslagcode. De veldconfiguratie staat
-in `tools/acf-map-visibility.json`; bestaande locaties zonder opgeslagen waarde
-behouden hetzelfde gedrag als de standaard Ja.
+Nieuwe afnemers worden concepten van `zuivel_verkooppunt`. Controleer naam en
+Google-locatie, kies de kaartzichtbaarheid en klik bewust op **Publiceren**.
+Een concept wordt niet automatisch gepubliceerd. Voor kaartzichtbaarheid zijn
+ook een actieve BOP-status, volledige recente bron en geldig kaartpunt nodig.
 
-Een bestaande ACF Google-sleutel blijft behouden. Zonder bestaande ACF-sleutel wordt
-de publieke getter van GravityWiz Address Autocomplete gebruikt; die sleutel wordt
-beheerd onder Gravity Forms → Instellingen → Autocomplete.
-Er zijn geen aparte Google-instellingen, eigen kaartinterface of servergeocoder.
-ACF verzorgt de zoekfunctie. Admin Columns Pro beheert de kolom **BOP-status**:
-een aangepast veld `_bop_active`, type Selecteer, keuzes `1 = Actieve afnemer` en
-`0 = Inactieve afnemer`. Filteren, slim filteren en sorteren staan aan; inline/bulk
-bewerken staan uit. Combineer Actieve afnemer met Concepten om locaties af te werken.
-Ook **Tonen op de openbare kaart** is een native Admin Columns ACF-kolom,
-toegevoegd via de tab Admin Columns bij het ACF-veld. Deze heeft standaard
-inline-/bulkbewerking, sorteren en slim filteren (Filter toevoegen → Tonen op
-de openbare kaart). De plugin registreert of rendert zelf geen lijstkolommen.
-De alleen-lezen editorstatus geeft daarnaast verlopen bron, onvolledige synchronisatie,
-uitleg, brondatum en zichtbaarheid op de website aan.
+De oude straat/postcode/plaats/import-ID-definities staan in een uitgeschakelde
+ACF-groep. De opgeslagen klantwaarden zijn niet verwijderd of gemigreerd. Het
+import-ID staat niet meer in de editor; BOP gebruikt zijn beschermde bronmetadata.
+De dubbele adreswaarden worden niet meer uit Google gekopieerd. Voor nieuwe
+concepten blijft het oorspronkelijke BOP-adres beschikbaar als referentiemetadata.
 
-Nieuwe importconcepten slaan de ACF-standaardwaarde Ja direct op; daarmee hebben
-de editor, de kaart en Admin Columns dezelfde waarde. Bestaande afnemers zonder
-opgeslagen keuze blijven voor de kaart standaard Ja. Admin Columns toont een
-lege cel totdat die standaard via native ACF/Admin Columns wordt opgeslagen.
-Een eventuele eenmalige aanvulling selecteert uitsluitend ontbrekende waarden;
-bewust gekozen Nee mag nooit worden overschreven.
+Een bestaande ontbrekende `show_on_map`-waarde blijft voor de kaart standaard Ja.
+Admin Columns toont een lege cel totdat de gebruiker een waarde opslaat. Dennis
+heeft bulkinitialisatie van bestaande afnemers geweigerd: voer die niet uit.
+Alleen bij eerste initialisatie van een nieuwe import wordt de ACF-default Ja
+bewaard; een bestaande eigen Nee wordt nooit door de import overschreven.
 
-BOP-verversingen overschrijven de door een beheerder ingevulde naam, het adres en
-kaartpunt niet. De bronidentiteit en expliciete BOP-aliassen houden de CPT-koppeling
-stabiel. Er wordt niet op oude importnamen gegokt. Archivering of verdwijnen uit
-BOP zet de post op concept; terugkeer vraagt opnieuw Publiceren. Een post in de
-prullenbak wordt niet hersteld. Ongeldige of onduidelijke bronlijsten worden geweigerd.
+## Specifieke koppellogica
 
-## Kleine koppelinginstelling
+De adapter valideert een volledige Postkantoor-snapshot vóór schrijven, bewaart
+stabiele bronidentiteiten en expliciete aliassen, voorkomt overlappende imports
+en dubbele posts, en bewaart lokale namen, locaties, zichtbaarheid en prullenbak.
+Inactieve/verdwenen afnemers gaan terug naar concept; terugkeer vraagt opnieuw
+publicatie. Een mislukte import publiceert geen onvolledige generatie.
 
-Onder **Instellingen → BOP-koppeling** kies je het bestaande API Connections-profiel,
-automatische import en de WordPress-gebruikers die meldingen ontvangen. Alleen hun
-ID's worden bewaard; actuele e-mailadressen worden bij verzending opgehaald en
-ontdubbeld. Selectie verleent geen extra rechten. Standaard blijven de bestaande
-ontvangers geselecteerd; nieuwe beheerders worden niet stilzwijgend toegevoegd.
+De Pro-provider `bop-afnemers` levert uitsluitend toegestane afnemers, met
+`postId`, ontsmette `name`/`address`-tekst en numerieke `latitude`/`longitude`.
+De pagina bepaalt de opmaak en Maps-link. Een bron ouder dan 48 uur levert geen
+markers; deze bestaande ontwerpkeuze is niet gewijzigd. Postkantoor hoeft niet
+bij ieder websitebezoek te worden bevraagd.
 
-**Verbinding testen** leest de lijst zonder posts te maken. **Nu importeren** start
-handmatig de import. Automatische import staat bij de upgrade uit, zodat de oude
-lijst eerst bewust kan worden opgeruimd. Activering laat WP-Cron elke vijftien
-minuten importeren. Zonder websitebezoek is daarvoor een echte server-cron nodig.
+Meldingen gaan alleen naar de expliciet gekozen gebruikers. Actuele adressen
+worden bij verzending opgehaald en ontdubbeld. Een melding wordt vóór overdracht
+vastgelegd om herhaling na onderbreking te voorkomen. Er is geen eigen
+mailtransport of wachtrij. Een maillink opent de beveiligde native editor en
+publiceert niets. Mislukte overdracht staat in de importstatus/Gravity SMTP.
 
-Een korte automatische mail verwijst naar de beveiligde native editor; bij meerdere
-nieuwe afnemers wordt één bericht per ontvanger gebundeld met een link naar de
-conceptenlijst. De maillink publiceert niets. Een melding wordt vóór overdracht
-vastgelegd om dubbele verzending na onderbreking te voorkomen. Mislukte overdracht
-wordt gemeld in de importstatus; bezorging controleer je in Gravity SMTP. Er is geen
-eigen mailwachtrij of automatisch herstel van mislukte/onderbroken verzending.
+De twee BOP-acties blijven kleine adapters: **Verbinding testen** leest alleen;
+**Nu importeren** voert de synchronisatie uit. Ze gebruiken de opgeslagen
+instellingen en een afzonderlijk nonce-beveiligd POST-formulier. Automatische
+import gebruikt de bestaande WP-Cron-taak om de vijftien minuten.
 
-## Kaart en cache
+## Configuratie en release
 
-De bestaande Pro-provider `bop-afnemers` en shortcode `[bop_afnemers]` lezen uitsluitend
-actieve, gepubliceerde CPT-posts met Tonen op de openbare kaart aan,
-complete ACF-locatiegegevens en een actuele
-BOP-generatie. Postkantoor hoeft bij paginaweergave niet te worden opgevraagd.
-Een bronlijst ouder dan 48 uur levert geen publieke markers. Een netwerkfout bewaart
-de vorige geldige lijst tot die grens. Een lege bronlijst archiveert eerdere koppelingen.
+Native configuratie staat onder `tools/` als normale ACF-importbestanden:
 
-Native opslaan/publiceren, prullenbakacties en import verversen gericht de
-WP Rocket-cache van de zuivelpagina (11088). Deze dynamische pagina is uitgesloten
-van volledige Rocket-paginacache, zodat een verlopen bron geen oude markers toont.
+1. Importeer `acf-settings-native-0.7.0.json` via ACF Tools en sla de bestaande
+   profiel-/ontvanger-/importkeuzes en de kaartpagina op. Instellingen zijn niet
+   langer afkomstig uit de oude `bzv_native_settings`-optie.
+2. Configureer de kaart-URL bij WP Rocket Never Cache URL(s) en Always Purge URL(s).
+3. Pas het bestaande Pro-document met `prepare-pro-map.py` aan. Dit behoudt andere
+   paginaonderdelen en gebruikt eerst velden die ook 0.6.6 al aanbiedt.
+4. Installeer de update met mapnaam `bwlst-zuivel-verkooplocaties`.
+5. Importeer `acf-customer-native-0.7.0.json`: legacyvelddefinities gaan eerst naar
+   een inactieve groep; de actieve groep houdt de Maps-locatie en kaartschakelaar.
+   De nieuwe statusgroep bevat alleen Message-velden. Geen klantwaarden wijzigen.
+6. Gebruik een native ACP Maps-adreskolom in plaats van de drie legacykolommen.
+7. Controleer de echte ACF-pagina, een bestaande editor, de publicatiekaart en
+   verbinding. Voer geen publicatie of testmail uit namens een beheerder.
 
-Pro Map Marker gebruikt `{{dc:looper:field key="latitude"}}`,
-`{{dc:looper:field key="longitude"}}` en `{{dc:looper:field key="popupHtml"}}`.
-De popup ontsmet naam en adres. Ook Hoeve Bouwlust komt uitsluitend uit BOP;
-de oude vaste boerderijmarker is verwijderd.
-`tools/prepare-pro-map.py` bereidt een native Pro-document voor zonder het te versturen.
+`prepare-native-config.php` bouwt de ACF-configuratie uit de gecontroleerde lokale
+back-up van deze site. `acf-customer-fields-backup.json` is de veldconfiguratie voor
+herstel; klantdata worden niet in deze bestanden opgenomen. Bewaar voor rollback
+ook de eerdere plugin, instellingen, ACP-export en het Pro-document.
 
-## Installatie en controles
+Controles: `php tests/native-workflow.php` en `python3 tests/pro-map.py`.
+De PHP-suite gebruikt uitsluitend lokale HTTP-/maildubbels. Zij controleert
+onder meer identiteit, archivering, publicatie, ontbrekende kaartkeuze, ACF-
+instellingen, ontvangers, cache en ontsmette Pro-data.
 
-- BOP: `BopPostOffice__PublishCustomerDirectoryEnabled=true` en
-  `CustomerLocations__ReviewInWordPress=true`.
-- Postkantoor: `/v1/customer-directory`, publishscope voor BOP en readscope voor
-  het bestaande WordPress-profiel. De bearer blijft uitsluitend in API Connections.
-- Installeer als update met mapnaam `bwlst-zuivel-verkooplocaties`.
-- Voeg in de bestaande ACF-groep het true_false-veld `show_on_map` toe, met
-  standaardwaarde1 en gestileerdeUI. De livegroep bevat dit vanaf0.6.5.
-- Test de verbinding, verwijder de oude lijst naar de prullenbak, activeer de gewenste
-  import/meldingen en importeer. Controleer daarna een echte vestiging bewust.
-- `php tests/native-workflow.php`: contract, identiteiten, CPT/ACF, publiceren,
-  cache/Pro, ontvangers, fouten, archivering en prullenbak met lokale dubbels.
-- `python3 tests/pro-map.py`: native Pro-structuur en behoud van andere pagina-inhoud.
+## Bestaande vertalingen
 
-Versie 0.6.0 vervangt de eigen reviewopslag, reviewinterface, Google/PDOK-code,
-CSV/XLSX-import en review-REST-routes door native WordPress en bestaande ACF-velden.
-De oude opties worden niet gelezen als bron voor publicatie. Rollback naar een oude
-plugin activeert niet automatisch dezelfde workflow; houd dan import/meldingen uit.
-
-## Nederlandse GravityWiz-teksten
-
-De bestaande gettextcatalogus onder `languages/` voor `gp-nested-forms` blijft
-behouden voor `nl_NL` en `nl_BE`. Updates van Gravity Perks overschrijven deze niet.
+De bestaande Nederlandse gettextcatalogus voor `gp-nested-forms` blijft behouden.
+Geen huidige geïnstalleerde plugin is geverifieerd als standaardvervanging voor
+precies deze vertalingen; verplaatsen naar Code Snippets zou nog steeds maatwerk
+zijn. Dit is een afzonderlijk bestaand onderdeel, geen nieuwe BOP-functionaliteit.

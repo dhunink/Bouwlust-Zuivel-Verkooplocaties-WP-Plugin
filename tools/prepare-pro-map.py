@@ -56,7 +56,8 @@ def prepare(document):
     marker['looper_consumer'] = True
     marker['map_marker_lat'] = '{{dc:looper:field key="latitude"}}'
     marker['map_marker_lng'] = '{{dc:looper:field key="longitude"}}'
-    marker['map_marker_content'] = '{{dc:looper:field key="popupHtml"}}'
+    popup = '<strong>{{dc:looper:field key="name"}}</strong><br>{{dc:looper:field key="address"}}<br><a href="https://www.google.com/maps/search/?api=1&amp;query={{dc:looper:field key="latitude"}},{{dc:looper:field key="longitude"}}" target="_blank" rel="noopener noreferrer">Bekijk in Google Maps</a>'
+    marker['map_marker_content'] = popup
     marker['map_marker_content_start'] = 'closed'
     target['_modules'] = [item for item in target['_modules']
         if item.get('looper_consumer') or item.get('_label') != 'Map Marker - hoeve bouwlust']
@@ -65,9 +66,23 @@ def prepare(document):
     if len(parents) != 1:
         raise ValueError('Cannot identify map column.')
     parent = parents[0]
-    if not any(item.get('_label') == 'BOP afnemers adreslijst' for item in parent['_modules']):
-        parent['_modules'].append({'_type': 'text', '_bp_base': '4_4', '_label': 'BOP afnemers adreslijst',
-            'text_content': '[bop_afnemers]', 'class': 'bz-text bop-afnemers-addresses', 'text_margin': '24px 0 0', '_modules': []})
+    existing = [item for item in parent['_modules'] if item.get('_label') == 'BOP afnemers adreslijst']
+    if len(existing) > 1:
+        raise ValueError('Multiple address lists require review.')
+    address_list = {'_type': 'layout-div', '_bp_base': '4_4', '_label': 'BOP afnemers adreslijst',
+        'layout_div_tag': 'ul', 'class': 'bop-afnemers bop-afnemers-addresses', 'layout_div_margin': '24px 0 0',
+        'layout_div_padding': '0px 0px 0px 1.5em', 'looper_provider': True, 'looper_provider_type': 'bop-afnemers',
+        '_modules': [{'_type': 'layout-div', '_bp_base': '4_4', '_label': 'Afnemer in adreslijst',
+            'layout_div_tag': 'li', 'layout_div_margin': '0px 0px 16px 0px', 'looper_consumer': True,
+            '_modules': [{'_type': 'text', '_bp_base': '4_4', '_label': 'Naam, adres en Google Maps',
+                'text_content': popup, 'class': 'bz-text', '_modules': []}]}]}
+    if existing:
+        for key in ('_id', '_dc', '_p'):
+            if key in existing[0]:
+                address_list[key] = existing[0][key]
+        parent['_modules'][parent['_modules'].index(existing[0])] = address_list
+    else:
+        parent['_modules'].append(address_list)
     # Native Content::update expects the modules array, not the serialized document wrapper.
     regions = data['data']['elements']['_modules']
     if len(regions) != 1 or regions[0].get('_type') != 'region':

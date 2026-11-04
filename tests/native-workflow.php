@@ -18,10 +18,9 @@ require __DIR__ . '/../includes/class-bzv-native.php';
 require __DIR__ . '/../includes/class-bzv-settings.php';
 require __DIR__ . '/../includes/class-bzv-postoffice.php';
 BZV_Native::init();
-$store['bzv_bop_connection_profile'] = 123;
-check(BZV_Settings::get()['recipients'] === [1, 2], 'Existing administrator recipients migrate to WordPress IDs.');
-check(!BZV_Settings::get()['automatic'], 'Upgrade never imports before the operator removes the old posts.');
-$store[BZV_Settings::OPTION] = ['profile' => 123, 'automatic' => true, 'email' => true, 'recipients' => [1, 4]];
+$store['bzv_native_settings'] = ['profile' => 123, 'automatic' => true, 'email' => true, 'recipients' => [1, 2]];
+check(!BZV_Settings::get()['automatic'] && !BZV_Settings::get()['recipients'], 'Missing native ACF configuration cannot silently enable imports or add all administrators.');
+$acfOptions = ['profile' => 123, 'automatic' => true, 'email' => true, 'recipients' => [1, 4], 'page' => 11088];
 check(BZV_Native::google_key(['libraries' => 'places']) === ['libraries' => 'places', 'key' => 'existing-gravitywiz-fixture'], 'ACF reuses GravityWiz key through its getter without storing a second key.');
 check(BZV_Native::google_key(['key' => 'existing-acf-fixture'])['key'] === 'existing-acf-fixture', 'A working ACF configuration is never overwritten by a differently restricted GravityWiz key.');
 // Full private contract validation must finish before the first post is created.
@@ -33,7 +32,7 @@ $directory['customers'][0]['address'] = 'Dorpsstraat 12'; $directory['customers'
 $result = BZV_Postoffice::sync(true); $postId = array_key_first($posts);
 check($result['ok'] && $result['created'] === 1 && count($posts) === 1 && get_post_status($postId) === 'draft', 'First import creates exactly one native draft.');
 check(get_post_meta($postId, 'show_on_map') === '1' && get_post_meta($postId, '_show_on_map') === 'field_6aeb36d3db858', 'New imports persist the native ACF default so Admin Columns can display and filter it.');
-check(get_post_meta($postId, '_address') === 'field_6a87537d43248' && !get_post_meta($postId, 'location'), 'Native ACF references are written; no coordinates or approvals are fabricated.');
+check(get_post_meta($postId, '_bop_address') === 'Dorpsstraat 12, 1234AB Testdorp' && !get_post_meta($postId, 'location') && !get_post_meta($postId, 'address'), 'Only source reference metadata is initialized; no duplicate address fields, coordinates or approvals are fabricated.');
 check(count($mails) === 1 && str_contains($mails[0]['html'], 'post.php?post=' . $postId) && !str_contains($mails[0]['html'], 'bop-afnemers'), 'Selected users with a shared email get one short notice linking to the native editor.');
 BZV_Postoffice::sync(true); check(count($posts) === 1 && count($mails) === 1, 'Repeated import is idempotent, including mail.');
 $_POST = ['post_ID' => $postId, 'publish' => 'Publiceren', 'post_status' => 'draft'];
@@ -45,21 +44,22 @@ foreach (['address', 'postal_code', 'city'] as $name) { update_post_meta($postId
 $map = ['address' => 'Dorpsstraat 12, 1234 AB Testdorp, Nederland', 'street_name' => 'Dorpsstraat', 'street_number' => '12', 'post_code' => '1234 AB', 'city' => 'Testdorp', 'lat' => 52.0, 'lng' => 4.0];
 update_field('field_6a8755b152cb6', $map, $postId);
 check(BZV_Native::source_status($postId)[0] === 'Actieve afnemer' && BZV_Native::website_status($postId) === 'Verborgen — nog niet gepubliceerd', 'BOP activity is distinct from native publication.');
-foreach ($acfFields as $field) { check((BZV_Native::prepare_field($field) === false) === !in_array($field['name'], ['location', 'show_on_map'], true), 'Native map and visibility remain editable; derived address and import-ID are hidden.'); }
-check(BZV_Native::prepare_field(['name' => 'acf[field_6a87537d43248]', '_name' => 'address', 'key' => 'field_6a87537d43248']) === false, 'ACF prefixes field names before prepare_field; key matching still hides the input.');
-check(BZV_Native::prepare_field(['name' => 'address', 'key' => 'unrelated_field']) !== false, 'Other ACF forms retain their own address fields.');
-update_post_meta($postId, 'import_id', 'original-id');
-check(BZV_Native::protect_import_id('forged-id', $postId, []) === 'original-id', 'Hidden import-ID is also protected from submitted ACF edits.');
+check(array_keys(BZV_Native::fields()) === ['location', 'show_on_map'], 'No dependency on removed legacy ACF address/import fields.');
+$GLOBALS['formPostId'] = $postId;
+$statusField = BZV_Native::status_field(['key' => 'field_bzv_source_status', 'type' => 'message']);
+check(str_contains($statusField['message'], 'Actieve afnemer') && str_contains($statusField['message'], 'BOP-brongegevens:'), 'Native read-only ACF message receives current source status and timestamp.');
 $_POST['acf'] = ['field_6a8755b152cb6' => json_encode($map)];
 $validationErrors = []; BZV_Native::validate_editor(); check(!$validationErrors, 'Complete active native post passes ACF validation.');
 $purged = []; wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(get_post_status($postId) === 'publish' && count(BZV_Native::looper()) === 1 && $purged === [['https://example.test/zuivel/']], 'Native Publish exposes the ACF point and invalidates the target WP Rocket page.');
-check(get_post_meta($postId, 'address') === 'Dorpsstraat 12' && get_post_meta($postId, 'postal_code') === '1234 AB' && get_post_meta($postId, 'city') === 'Testdorp', 'Saving derives existing list columns from the canonical map.');
+check(get_post_meta($postId, 'address') === '' && get_post_meta($postId, 'postal_code') === '' && get_post_meta($postId, 'city') === '', 'Saving a map leaves existing legacy data untouched; Admin Columns reads the map directly.');
+check(BZV_Native::looper()[0]['address'] === $map['address'] && BZV_Native::looper()[0]['name'] === 'Voorbeeld &amp; Zonen' && !isset(BZV_Native::looper()[0]['popupHtml']), 'The Pro adapter returns escaped text and numeric coordinates, without presentation HTML.');
 check(BZV_Native::website_status($postId) === 'Zichtbaar op de zuivelkaart', 'Read-only website status reflects actual published marker eligibility.');
 delete_post_meta($postId, 'show_on_map');
 check(BZV_Native::show_on_map($postId) && count(BZV_Native::looper()) === 1, 'Missing legacy visibility metadata preserves existing approved locations.');
+BZV_Postoffice::sync(true); check(get_post_meta($postId, 'show_on_map') === '', 'Repeated import never initializes existing missing visibility choices.');
 $purged = []; update_field('field_6aeb36d3db858', '0', $postId);
-check(!BZV_Native::looper() && !str_contains(BZV_Native::address_list(), 'Dorpsstraat') && get_post_status($postId) === 'publish', 'Opt-out hides marker and public address without unpublishing the customer.');
+check(!BZV_Native::looper() && get_post_status($postId) === 'publish', 'Opt-out hides marker and public address without unpublishing the customer.');
 check($purged === [['https://example.test/zuivel/']] && str_contains(BZV_Native::website_status($postId), 'staat uit'), 'Visibility changes purge the target page and explain the hidden state.');
 BZV_Postoffice::sync(true); check(!BZV_Native::show_on_map($postId) && !BZV_Native::looper(), 'Repeated BOP imports preserve the local visibility choice.');
 $_POST['acf']['field_6aeb36d3db858'] = '0'; $_POST['acf']['field_6a8755b152cb6'] = '';
@@ -75,12 +75,12 @@ check(!BZV_Native::looper(), 'Enabled drafts still require conscious publication
 wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(count(BZV_Native::looper()) === 1, 'A reviewed enabled location returns after native publication.');
 $minimalMap = ['address' => 'Een adres zonder losse Google-onderdelen', 'lat' => 52.0, 'lng' => 4.0];
-check(BZV_Native::valid_location($minimalMap) && BZV_Native::location_address($minimalMap)['address'] === $minimalMap['address'], 'Optional Google address components never require duplicate manual input.');
+check(BZV_Native::valid_location($minimalMap), 'Optional Google address components never require duplicate manual input.');
 check(!BZV_Native::valid_location(['lat' => 52, 'lng' => 4]) && !BZV_Native::valid_location(['address' => 'x', 'lat' => '1e999', 'lng' => 4]), 'Missing address and non-finite points remain blocked.');
 $_POST['acf']['field_6a8755b152cb6'] = ''; $validationErrors = []; BZV_Native::validate_editor();
 check(count($validationErrors) === 1, 'Clearing a posted map is rejected even if the previous saved map was valid.');
 $_POST['acf']['field_6a8755b152cb6'] = json_encode($map);
-update_field('field_6a87537d43248', 'Eigen adres 8', $postId); BZV_Postoffice::sync(true);
+update_post_meta($postId, 'address', 'Eigen adres 8'); BZV_Postoffice::sync(true);
 check(get_post_meta($postId, 'address') === 'Eigen adres 8', 'Postkantoor never overwrites native editor changes.');
 $directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('c', 64) . '"';
 $directory['customers'][0]['aliases'] = [$directory['customers'][0]['customerId']]; $directory['customers'][0]['customerId'] = 'location:10000000-0000-0000-0000-111111111111'; $directory['customers'][0]['identityConfirmed'] = true;
@@ -106,8 +106,15 @@ check(BZV_Postoffice::sync(true)['ok'] && count($posts) === 2, 'Retry creates no
 $directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('9', 64) . '"';
 $directory['customers'][0]['aliases'][] = $directory['customers'][1]['customerId']; array_pop($directory['customers']);
 check(!BZV_Postoffice::sync(true)['ok'] && !BZV_Postoffice::fresh() && count($posts) === 2, 'Merge of two existing native posts is not guessed or published.');
-$prior = BZV_Settings::get();
-check(BZV_Settings::sanitize(['profile' => 123, 'email' => 1, 'recipients' => []]) === $prior, 'Empty enabled recipient selection is rejected.');
-$cap = false; check(BZV_Settings::sanitize(['profile' => 123]) === $prior, 'Non-admin cannot change connection settings.'); $cap = true;
-check(BZV_Settings::sanitize(['profile' => 123, 'email' => 1, 'recipients' => [3]])['recipients'] === [3], 'Existing non-admin WordPress users can receive mail without added permissions.');
+$settingsInput = ['field_bzv_profile' => 123, 'field_bzv_email' => '1', 'field_bzv_recipients' => [3], 'field_bzv_page' => 11088];
+check(BZV_Settings::validate(true, $settingsInput) === true, 'Existing non-admin users can be selected without added permissions.');
+foreach ([['field_bzv_recipients', []], ['field_bzv_recipients', [999]], ['field_bzv_profile', 0], ['field_bzv_page', $postId]] as [$key, $bad]) {
+    check(is_string(BZV_Settings::validate(true, array_replace($settingsInput, [$key => $bad]))), 'Invalid recipient/profile/page cannot be saved through ACF.');
+}
+$cap = false; check(is_string(BZV_Settings::validate(true, $settingsInput)), 'Non-admin cannot change connection settings.'); $cap = true;
+check(BZV_Settings::validate('Previous validation error', $settingsInput) === 'Previous validation error', 'Earlier ACF validation errors remain intact.');
+check(BZV_Settings::validate(true, array_replace($settingsInput, ['field_bzv_email' => '0', 'field_bzv_recipients' => []])) === true, 'Disabled notifications allow an empty selection.');
+$store[BZV_Postoffice::SNAPSHOT] = ['generation' => 'fixture']; $purged = [];
+BZV_Settings::profile_changed(123); check(isset($store[BZV_Postoffice::SNAPSHOT]), 'Saving the same native profile preserves the source generation.');
+BZV_Settings::profile_changed(456); check(!isset($store[BZV_Postoffice::SNAPSHOT]) && count($purged) === 1, 'Changing the profile invalidates the old directory and cache.');
 echo "Native workflow passed: private contract, stable CPT/aliases, ACF and GravityWiz reuse, standard Publish, cache/Pro output, recipient deduplication, stale data, archive/trash, failed writes and settings permissions.\n";

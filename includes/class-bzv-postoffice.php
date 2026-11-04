@@ -15,7 +15,6 @@ final class BZV_Postoffice {
     public static function schedule(): void {
         if (!wp_next_scheduled('bzv_bop_locations_sync')) { wp_schedule_event(time() + 900, 'bzv_quarter_hour', 'bzv_bop_locations_sync'); }
         if (get_option('bzv_bop_cache_version') !== BZV_VERSION) {
-            if (function_exists('rocket_generate_config_file')) { rocket_generate_config_file(); }
             BZV_Native::purge(); update_option('bzv_bop_cache_version', BZV_VERSION, false);
         }
     }
@@ -113,10 +112,7 @@ final class BZV_Postoffice {
                         update_field($fields['show_on_map'], '1', $id);
                         if (get_post_meta($id, 'show_on_map', true) !== '1') { throw new RuntimeException('De standaard kaartkeuze kon niet worden opgeslagen.'); }
                     }
-                    foreach (['address' => 'address', 'postal_code' => 'postalCode', 'city' => 'city'] as $name => $source) {
-                        update_field($fields[$name], $customer[$source], $id);
-                        if ((string) get_post_meta($id, $name, true) !== $customer[$source]) { throw new RuntimeException('De eerste adresvelden konden niet worden opgeslagen.'); }
-                    }
+                    self::meta($id, '_bop_address', trim($customer['address'] . ', ' . $customer['postalCode'] . ' ' . $customer['city'], ', '));
                     self::meta($id, '_bop_initialized', '1');
                 }
                 self::meta($id, '_bop_active', $customer['active'] ? '1' : '0');

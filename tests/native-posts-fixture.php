@@ -1,10 +1,6 @@
 <?php
 $posts = []; $meta = []; $fieldWrites = []; $failField = ''; $failInsert = false; $failOwner = false;
 $acfFields = [
-    ['name' => 'address', 'key' => 'field_6a87537d43248', 'type' => 'text'],
-    ['name' => 'postal_code', 'key' => 'field_6a87547118145', 'type' => 'text'],
-    ['name' => 'city', 'key' => 'field_6a87539e43249', 'type' => 'text'],
-    ['name' => 'import_id', 'key' => 'field_6a8753c04324c', 'type' => 'text'],
     ['name' => 'location', 'key' => 'field_6a8755b152cb6', 'type' => 'google_map'],
     ['name' => 'show_on_map', 'key' => 'field_6aeb36d3db858', 'type' => 'true_false'],
 ];
@@ -13,7 +9,7 @@ function acf_get_fields($group) { return $GLOBALS['acfFields']; }
 function post_type_exists($type) { return $type === 'zuivel_verkooppunt'; }
 function get_posts($args) { return array_values(array_filter($GLOBALS['posts'], static fn($p) => $p->post_type === $args['post_type'] && in_array($p->post_status, (array) $args['post_status'], true) && (!isset($args['meta_key']) || get_post_meta($p->ID, $args['meta_key']) === $args['meta_value']))); }
 function get_post($id) { return isset($GLOBALS['posts'][$id]) ? clone $GLOBALS['posts'][$id] : null; }
-function get_post_type($id) { return get_post($id)?->post_type ?: false; }
+function get_post_type($id) { if ($id === 11088) return 'page'; return get_post($id)?->post_type ?: false; }
 function get_post_status($id) { return get_post($id)?->post_status ?: false; }
 function get_post_meta($id, $key, $single = true) { return $GLOBALS['meta'][$id][$key] ?? ''; }
 function update_post_meta($id, $key, $value) {
@@ -48,3 +44,6 @@ function update_field($key, $value, $id) {
     update_post_meta($id, '_' . $name, $key);
     return $value === null ? delete_post_meta($id, $name) : update_post_meta($id, $name, $value);
 }
+
+function get_field($key, $id = false) { check($key === BZV_Settings::FIELD && $id === 'option', 'Use the native ACF settings group.'); return $GLOBALS['acfOptions'] ?? []; }
+function acf_get_form_data($key) { return $GLOBALS['formPostId'] ?? 0; }

@@ -1,81 +1,65 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
 
-/** Only connection and notification preferences; editing uses the native CPT screen. */
+/** ACF owns the options page and fields; this adapter validates the BOP connection. */
 final class BZV_Settings {
-    public const OPTION = 'bzv_native_settings';
+    public const FIELD = 'field_bzv_settings';
     public static function init(): void {
-        add_action('admin_menu', static fn() => add_options_page('BOP-koppeling', 'BOP-koppeling', 'manage_options', 'bop-connection', [__CLASS__, 'page']));
-        add_action('admin_init', [__CLASS__, 'register']);
+        add_filter('acf/validate_value/key=' . self::FIELD, [__CLASS__, 'validate'], 20, 2);
+        add_filter('acf/update_value/key=field_bzv_profile', [__CLASS__, 'profile_changed']);
+        add_filter('acf/update_value/key=field_bzv_page', static function ($value) { if ((int) $value !== self::get()['page']) { BZV_Native::purge(); } return $value; });
+        add_action('acf/options_page/save', static function ($id, $slug) { if ($slug === 'bop-koppeling') { BZV_Native::purge(); } }, 20, 2);
+        add_action('acf/render_field/key=field_bzv_import_actions', [__CLASS__, 'actions']);
+        add_action('admin_footer', [__CLASS__, 'action_form']);
         add_action('admin_post_bzv_directory_import', [__CLASS__, 'run']);
         add_action('admin_menu', static function () {
-            if (($_GET['page'] ?? '') === 'bop-afnemers' && current_user_can('manage_options')) { wp_safe_redirect(admin_url('edit.php?post_type=' . BZV_Native::TYPE)); exit; }
+            $redirect = ['bop-afnemers' => 'edit.php?post_type=' . BZV_Native::TYPE, 'bop-connection' => 'options-general.php?page=bop-koppeling'][$_GET['page'] ?? ''] ?? '';
+            if ($redirect && current_user_can('manage_options')) { wp_safe_redirect(admin_url($redirect)); exit; }
         });
     }
     public static function get(): array {
-        $settings = get_option(self::OPTION, null);
-        if (is_array($settings)) { return $settings; }
-        $old = (array) get_option('bzv_afnemer_settings', []);
-        $ids = ($old['recipientMode'] ?? 'administrators') === 'administrators' ? array_map('intval', get_users(['role' => 'administrator', 'fields' => 'ID'])) : array_map('intval', $old['recipientUserIds'] ?? []);
-        return ['profile' => absint(get_option('bzv_bop_connection_profile', 0)), 'automatic' => false, 'email' => !empty($old['emailEnabled']), 'recipients' => $ids];
+        $s = function_exists('get_field') ? (array) get_field(self::FIELD, 'option') : [];
+        return ['profile' => absint($s['profile'] ?? 0), 'automatic' => !empty($s['automatic']), 'email' => !empty($s['email']),
+            'recipients' => array_values(array_unique(array_filter(array_map('absint', (array) ($s['recipients'] ?? []))))), 'page' => absint($s['page'] ?? 0)];
     }
-    public static function register(): void {
-        if (get_option(self::OPTION, null) === null) { add_option(self::OPTION, self::get(), '', false); }
-        register_setting('bzv_connection', self::OPTION, ['type' => 'array', 'sanitize_callback' => [__CLASS__, 'sanitize']]);
-        add_settings_section('bzv_main', 'Postkantoor en meldingen', '__return_false', 'bop-connection');
-        foreach (['profile' => 'Verbindingsprofiel', 'automatic' => 'Automatisch importeren', 'email' => 'E-mailmeldingen', 'recipients' => 'Ontvangers'] as $key => $label) {
-            add_settings_field('bzv_' . $key, $label, [__CLASS__, 'field'], 'bop-connection', 'bzv_main', ['key' => $key]);
-        }
-    }
-    public static function sanitize($input): array {
-        $old = self::get();
-        if (!current_user_can('manage_options') || !is_array($input)) { return $old; }
-        $ids = is_array($input['recipients'] ?? []) ? array_values(array_unique(array_map('absint', $input['recipients'] ?? []))) : [];
-        $ids = array_values(array_filter($ids));
+    public static function validate($valid, $value) {
+        if ($valid !== true) { return $valid; }
+        if (!current_user_can('manage_options') || !is_array($value)) { return 'Geen toegang tot de BOP-instellingen.'; }
+        $ids = array_values(array_unique(array_filter(array_map('absint', (array) ($value['field_bzv_recipients'] ?? [])))));
         $users = $ids ? get_users(['include' => $ids, 'fields' => ['ID', 'user_email']]) : [];
-        $next = ['profile' => absint($input['profile'] ?? 0), 'automatic' => !empty($input['automatic']), 'email' => !empty($input['email']), 'recipients' => $ids];
-        if (count($ids) > 100 || count($ids) !== count($users) || array_filter($users, static fn($u) => !is_email($u->user_email)) || ($next['email'] && !$ids) || !BZV_Postoffice::profile($next['profile'])[1]) {
-            add_settings_error(self::OPTION, 'invalid', 'Kies een geldig Postkantoor-profiel en bij ingeschakelde meldingen minstens één bestaande gebruiker met een geldig e-mailadres.'); return $old;
+        if (count($ids) > 100 || count($ids) !== count($users) || array_filter($users, static fn($u) => !is_email($u->user_email)) ||
+            (!empty($value['field_bzv_email']) && !$ids) || !BZV_Postoffice::profile(absint($value['field_bzv_profile'] ?? 0))[1]) {
+            return 'Kies een geldig Postkantoor-profiel en bij ingeschakelde meldingen minstens één bestaande gebruiker met een geldig e-mailadres.';
         }
-        if ($next['profile'] !== $old['profile']) { delete_option(BZV_Postoffice::SNAPSHOT); BZV_Native::purge(); }
-        return $next;
+        if (get_post_type(absint($value['field_bzv_page'] ?? 0)) !== 'page') { return 'Kies de bestaande pagina met de openbare kaart.'; }
+        return true;
     }
-    public static function field(array $args): void {
-        $s = self::get(); $key = $args['key']; $name = self::OPTION . '[' . $key . ']';
-        if (in_array($key, ['automatic', 'email'], true)) {
-            echo '<label><input type="checkbox" name="' . esc_attr($name) . '" value="1" ' . checked($s[$key], true, false) . '> ' . ($key === 'automatic' ? 'Elke 15 minuten de BOP-afnemers bijwerken' : 'Geselecteerde gebruikers melden dat er nieuwe concepten klaarstaan') . '</label>'; return;
-        }
-        if ($key === 'profile') {
-            echo '<select name="' . esc_attr($name) . '"><option value="0">Kies een verbinding</option>';
-            $class = '\\GC_API_Alchemist\\Connection_Profiles\\Connection_Profile';
-            foreach (class_exists($class) ? $class::get_all() : [] as $profile) {
-                if (BZV_Postoffice::profile($profile->get_id())[1]) { echo '<option value="' . (int) $profile->get_id() . '" ' . selected($s[$key], $profile->get_id(), false) . '>' . esc_html($profile->get_title()) . '</option>'; }
-            }
-            echo '</select><p class="description">De verbinding en sleutel blijven beheerd onder Formulieren → API Connections.</p>'; return;
-        }
-        foreach (get_users(['orderby' => 'display_name', 'order' => 'ASC']) as $user) {
-            echo '<label><input type="checkbox" name="' . esc_attr($name) . '[]" value="' . (int) $user->ID . '" ' . checked(in_array((int) $user->ID, $s['recipients'], true), true, false) . '> ' . esc_html($user->display_name . ' (' . $user->user_email . ')') . '</label><br>';
-        }
-        echo '<p class="description">Selectie verleent geen extra rechten. Gebruikers hebben de bestaande WordPress-rechten nodig om afnemers te bewerken en publiceren.</p>';
+    public static function profile_changed($value) {
+        if ((int) $value !== self::get()['profile']) { delete_option(BZV_Postoffice::SNAPSHOT); BZV_Native::purge(); }
+        return $value;
     }
-    public static function page(): void {
+    public static function actions(): void {
         if (!current_user_can('manage_options')) { return; }
-        echo '<div class="wrap"><h1>BOP-koppeling</h1><p>Afnemers controleer en publiceer je in de <a href="' . esc_url(admin_url('edit.php?post_type=' . BZV_Native::TYPE)) . '">gewone WordPress-lijst</a>, met het bestaande ACF Google-kaartveld.</p>';
-        settings_errors(); $status = get_option('bzv_directory_status', []);
-        if ($status) { echo '<div class="notice notice-' . (!empty($status['ok']) ? 'success' : 'warning') . ' inline"><p>' . esc_html($status['message']) . ' (' . esc_html(wp_date('d-m-Y H:i', $status['at'])) . ')</p></div>'; }
-        echo '<form method="post" action="options.php">'; settings_fields('bzv_connection'); do_settings_sections('bop-connection'); submit_button(); echo '</form>';
-        echo '<p>Google wordt gebruikt via het bestaande ACF-kaartveld. De bestaande ACF-sleutel blijft behouden; anders wordt de sleutel hergebruikt uit <a href="' . esc_url(admin_url('admin.php?page=gf_settings&subview=gp-address-autocomplete')) . '">Gravity Forms → Instellingen → Autocomplete</a>. Er zijn hier geen aparte Google-sleutels.</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_directory_import">'; wp_nonce_field('bzv_directory_import');
-        submit_button('Verbinding testen', 'secondary', 'test', false); echo ' '; submit_button('Nu importeren', 'secondary', 'import', false); echo '</form></div>';
+        $status = get_option('bzv_directory_status', []);
+        if ($status) { echo '<p>' . esc_html($status['message']) . ' (' . esc_html(wp_date('d-m-Y H:i', $status['at'])) . ')</p>'; }
+        foreach (['test' => 'Verbinding testen', 'import' => 'Nu importeren'] as $action => $label) {
+            echo '<button class="button" type="submit" form="bzv-directory-actions" name="bzv_operation" value="' . esc_attr($action) . '">' . esc_html($label) . '</button> ';
+        }
+    }
+    public static function action_form(): void {
+        if (($_GET['page'] ?? '') !== 'bop-koppeling' || !current_user_can('manage_options')) { return; }
+        // Separate form ownership keeps import/test outside ACF's settings-save validation.
+        echo '<form id="bzv-directory-actions" method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_directory_import">';
+        wp_nonce_field('bzv_directory_import', '_bzv_nonce'); echo '</form>';
     }
     public static function run(): void {
-        if (!current_user_can('manage_options')) { wp_die('Geen toegang.', '', ['response' => 403]); }
-        check_admin_referer('bzv_directory_import');
-        if (isset($_POST['test'])) {
+        if (!current_user_can('manage_options') || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { wp_die('Geen toegang.', '', ['response' => 403]); }
+        check_admin_referer('bzv_directory_import', '_bzv_nonce');
+        if (($_POST['bzv_operation'] ?? '') === 'test') {
             try { $d = BZV_Postoffice::fetch(); $status = ['ok' => true, 'message' => 'Verbinding werkt: ' . count($d['customers']) . ' afnemers, waarvan ' . count(array_filter($d['customers'], static fn($c) => $c['active'])) . ' actief. Er zijn nog geen posts geïmporteerd.']; }
             catch (RuntimeException $e) { $status = ['ok' => false, 'message' => $e->getMessage()]; }
             update_option('bzv_directory_status', ['at' => time(), ...$status], false);
-        } else { BZV_Postoffice::sync(true); }
-        wp_safe_redirect(admin_url('options-general.php?page=bop-connection')); exit;
+        } elseif (($_POST['bzv_operation'] ?? '') === 'import') { BZV_Postoffice::sync(true); }
+        wp_safe_redirect(admin_url('options-general.php?page=bop-koppeling')); exit;
     }
 }

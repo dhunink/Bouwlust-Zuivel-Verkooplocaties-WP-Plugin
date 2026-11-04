@@ -21,7 +21,12 @@ assert len(updated_map['_modules']) == 1, 'Only the dynamic BOP marker remains'
 assert updated_map['looper_provider_type'] == 'bop-afnemers'
 assert 'looper_provider_query_count' not in updated_map
 assert updated_map['_modules'][0]['map_marker_lat'] == '{{dc:looper:field key="latitude"}}'
-assert updated['_modules'][0]['_modules'][1]['text_content'] == '[bop_afnemers]'
+address_list = updated['_modules'][0]['_modules'][1]
+assert address_list['_type'] == 'layout-div' and address_list['layout_div_tag'] == 'ul'
+assert address_list['looper_provider_type'] == 'bop-afnemers'
+assert address_list['_modules'][0]['looper_consumer'] and address_list['_modules'][0]['layout_div_tag'] == 'li'
+assert 'popupHtml' not in str(result) and '[bop_afnemers]' not in str(result)
+assert 'key="address"' in updated_map['_modules'][0]['map_marker_content']
 doc['data']['elements']['_modules'][0]['_modules'] = result['elements']
 assert module.prepare(doc) == result, 'Preparation must be idempotent'
 print('Pro document preparation passed: structure, visibility, BOP-only marker, other content and repeatability.')
