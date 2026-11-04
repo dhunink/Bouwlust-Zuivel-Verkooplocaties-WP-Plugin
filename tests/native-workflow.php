@@ -1,0 +1,75 @@
+<?php
+require __DIR__ . '/native-fixture.php';
+require __DIR__ . '/native-posts-fixture.php';
+function wp_is_post_revision($id) { return false; }
+function add_settings_error(...$args) { $GLOBALS['settingsErrors'][] = $args; }
+function acf_add_validation_error(...$args) { $GLOBALS['validationErrors'][] = $args; }
+class TestProfile {
+    public static function get($id) { return $id === 123 ? new self() : null; }
+    public function get_status() { return 'publish'; }
+    public function get_auth_type() { return 'bearer'; }
+    public function get_base_url() { return 'https://postoffice.example.test'; }
+    public function get_auth_config_value($key, $default) { return 'bop_post_v1.fixture.' . str_repeat('a', 64); }
+}
+class_alias(TestProfile::class, 'GC_API_Alchemist\\Connection_Profiles\\Connection_Profile');
+function gp_address_autocomplete() { return new class { public function get_google_api_key() { return 'existing-gravitywiz-fixture'; } }; }
+require __DIR__ . '/../includes/class-bzv-directory.php';
+require __DIR__ . '/../includes/class-bzv-native.php';
+require __DIR__ . '/../includes/class-bzv-settings.php';
+require __DIR__ . '/../includes/class-bzv-postoffice.php';
+BZV_Native::init();
+$store['bzv_bop_connection_profile'] = 123;
+check(BZV_Settings::get()['recipients'] === [1, 2], 'Existing administrator recipients migrate to WordPress IDs.');
+check(!BZV_Settings::get()['automatic'], 'Upgrade never imports before the operator removes the old posts.');
+$store[BZV_Settings::OPTION] = ['profile' => 123, 'automatic' => true, 'email' => true, 'recipients' => [1, 4]];
+check(BZV_Native::google_key(['libraries' => 'places']) === ['libraries' => 'places', 'key' => 'existing-gravitywiz-fixture'], 'ACF reuses GravityWiz key through its getter without storing a second key.');
+// Full private contract validation must finish before the first post is created.
+$original = $directory;
+foreach ([['customers', [$directory['customers'][0], $directory['customers'][0]]], ['generation', '1e9'], ['publishedAt', '2000-01-01T00:00:00Z']] as [$key, $bad]) {
+    $directory[$key] = $bad; $result = BZV_Postoffice::sync(true); check(!$result['ok'] && !$posts, 'Invalid or old directory does not mutate posts.'); $directory = $original;
+}
+$directory['customers'][0]['address'] = 'Dorpsstraat 12'; $directory['customers'][0]['postalCode'] = '1234AB'; $directory['customers'][0]['city'] = 'Testdorp';
+$result = BZV_Postoffice::sync(true); $postId = array_key_first($posts);
+check($result['ok'] && $result['created'] === 1 && count($posts) === 1 && get_post_status($postId) === 'draft', 'First import creates exactly one native draft.');
+check(get_post_meta($postId, '_address') === 'field_6a87537d43248' && !get_post_meta($postId, 'location'), 'Native ACF references are written; no coordinates or approvals are fabricated.');
+check(count($mails) === 1 && str_contains($mails[0]['html'], 'post.php?post=' . $postId) && !str_contains($mails[0]['html'], 'bop-afnemers'), 'Selected users with a shared email get one short notice linking to the native editor.');
+BZV_Postoffice::sync(true); check(count($posts) === 1 && count($mails) === 1, 'Repeated import is idempotent, including mail.');
+$_POST = ['post_ID' => $postId, 'publish' => 'Publiceren', 'post_status' => 'draft'];
+BZV_Native::validate_editor(); check(count($validationErrors ?? []) === 1, 'Publish requires a valid map point through standard ACF validation.');
+wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
+check(get_post_status($postId) === 'draft' && !BZV_Native::looper(), 'Non-ACF publication cannot expose an incomplete post.');
+update_field('field_6a8755b152cb6', ['address' => 'Dorpsstraat 12', 'lat' => 52.0, 'lng' => 4.0], $postId);
+$validationErrors = []; BZV_Native::validate_editor(); check(!$validationErrors, 'Complete active native post passes ACF validation.');
+$purged = []; wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
+check(get_post_status($postId) === 'publish' && count(BZV_Native::looper()) === 1 && $purged === [['https://example.test/zuivel/']], 'Native Publish exposes the ACF point and invalidates the target WP Rocket page.');
+update_field('field_6a87537d43248', 'Eigen adres 8', $postId); BZV_Postoffice::sync(true);
+check(get_post_meta($postId, 'address') === 'Eigen adres 8', 'Postkantoor never overwrites native editor changes.');
+$directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('c', 64) . '"';
+$directory['customers'][0]['aliases'] = [$directory['customers'][0]['customerId']]; $directory['customers'][0]['customerId'] = 'location:10000000-0000-0000-0000-111111111111'; $directory['customers'][0]['identityConfirmed'] = true;
+check(BZV_Postoffice::sync(true)['ok'] && count($posts) === 1 && get_post_status($postId) === 'publish', 'Explicit BOP aliases retain the same native post and publication.');
+$remoteMode = 'fail'; check(!BZV_Postoffice::sync(true)['ok'] && count(BZV_Native::looper()) === 1, 'Network failure retains a still-fresh complete list.'); $remoteMode = 'fresh';
+$store[BZV_Postoffice::SNAPSHOT]['publishedTimestamp'] = time() - 48 * 3600;
+check(!BZV_Native::looper(), 'A stale source cannot keep public markers alive.');
+BZV_Postoffice::sync(true);
+$directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('d', 64) . '"';
+$directory['customers'][0]['active'] = false; BZV_Postoffice::sync(true);
+check(get_post_status($postId) === 'draft' && !BZV_Native::looper(), 'BOP archiving drafts the post and removes its marker.');
+$directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('e', 64) . '"';
+$directory['customers'][0]['active'] = true; BZV_Postoffice::sync(true);
+check(get_post_status($postId) === 'draft', 'Returning posts require the normal native Publish action.');
+wp_update_post(['ID' => $postId, 'post_status' => 'trash']); BZV_Postoffice::sync(true);
+check(get_post_status($postId) === 'trash' && count($posts) === 1, 'Trash is never resurrected or duplicated by sync.');
+// A failed owner-meta write recovers by deterministic native slug, even after restart.
+$directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('f', 64) . '"';
+$directory['customers'][] = array_replace($directory['customers'][0], ['customerId' => 'source:' . str_repeat('e', 64), 'aliases' => [], 'identityConfirmed' => false, 'name' => 'Tweede afnemer']);
+$failOwner = true; check(!BZV_Postoffice::sync(true)['ok'], 'Failed metadata writes are reported.'); $failOwner = false;
+check(BZV_Postoffice::sync(true)['ok'] && count($posts) === 2, 'Retry creates no duplicate when ownership or first address writing fails.');
+// Whole-snapshot identity ambiguity fails closed before any post writes.
+$directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('9', 64) . '"';
+$directory['customers'][0]['aliases'][] = $directory['customers'][1]['customerId']; array_pop($directory['customers']);
+check(!BZV_Postoffice::sync(true)['ok'] && !BZV_Postoffice::fresh() && count($posts) === 2, 'Merge of two existing native posts is not guessed or published.');
+$prior = BZV_Settings::get();
+check(BZV_Settings::sanitize(['profile' => 123, 'email' => 1, 'recipients' => []]) === $prior, 'Empty enabled recipient selection is rejected.');
+$cap = false; check(BZV_Settings::sanitize(['profile' => 123]) === $prior, 'Non-admin cannot change connection settings.'); $cap = true;
+check(BZV_Settings::sanitize(['profile' => 123, 'email' => 1, 'recipients' => [3]])['recipients'] === [3], 'Existing non-admin WordPress users can receive mail without added permissions.');
+echo "Native workflow passed: private contract, stable CPT/aliases, ACF and GravityWiz reuse, standard Publish, cache/Pro output, recipient deduplication, stale data, archive/trash, failed writes and settings permissions.\n";

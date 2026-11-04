@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Bouwlust Zuivel Verkooplocaties
- * Description: Gecontroleerde BOP-afnemers voor de Pro-kaart, met bestaande Bouwlust-vertalingen en importarchief.
- * Version: 0.5.1
+ * Description: BOP-afnemers als WordPress-posts met bestaande ACF-locaties, Pro-kaart en Bouwlust-vertalingen.
+ * Version: 0.6.0
  * Author: Hoeve Bouwlust
  */
 
@@ -10,28 +10,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BZV_VERSION', '0.5.1');
+define('BZV_VERSION', '0.6.0');
 define('BZV_PLUGIN_FILE', __FILE__);
 define('BZV_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
 require_once BZV_PLUGIN_DIR . 'includes/class-bzv-translations.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-file-reader.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-importer.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-acf-bridge.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-maintenance.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-admin.php';
-
+require_once BZV_PLUGIN_DIR . 'includes/class-bzv-directory.php';
+require_once BZV_PLUGIN_DIR . 'includes/class-bzv-native.php';
+require_once BZV_PLUGIN_DIR . 'includes/class-bzv-postoffice.php';
+require_once BZV_PLUGIN_DIR . 'includes/class-bzv-settings.php';
 BZV_Translations::init();
-BZV_ACF_Bridge::init();
-BZV_Admin::init();
-
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-afnemer-state.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-afnemer-google.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-afnemer-reviews.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-afnemer-admin.php';
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-afnemer-posts.php';
-BZV_Afnemer_Posts::init();
-BZV_Afnemer_Reviews::init();
-require_once BZV_PLUGIN_DIR . 'includes/class-bzv-bop-locations.php';
-BZV_Bop_Locations::init();
-register_deactivation_hook(__FILE__, [BZV_Bop_Locations::class, 'deactivate']);
+BZV_Native::init();
+BZV_Postoffice::init();
+BZV_Settings::init();
+register_deactivation_hook(__FILE__, [BZV_Postoffice::class, 'deactivate']);

@@ -3,7 +3,7 @@
 const ABSPATH = __DIR__;
 const HOUR_IN_SECONDS = 3600;
 const MINUTE_IN_SECONDS = 60;
-const BZV_VERSION = '0.5.0';
+const BZV_VERSION = '0.6.0';
 const BOP_CUSTOMER_LOCATIONS_URL = 'https://postoffice.example.test';
 const BOP_CUSTOMER_LOCATIONS_TOKEN = 'test-only-not-a-credential';
 class WP_Error { public function __construct(public $code, public $message, public $data = []) {} public function get_error_message() { return $this->message; } }
@@ -55,8 +55,7 @@ function esc_textarea($t) { return esc_html($t); }
 function admin_url($path) { return 'https://wordpress.example.test/wp-admin/' . $path; }
 function current_user_can($cap) { return $GLOBALS['cap']; }
 function get_current_user_id() { return $GLOBALS['user']; }
-function get_users($args) { return array_values(array_filter($GLOBALS['wpUsers'], static fn($u) =>
-    (!isset($args['role']) || in_array($args['role'], $u->roles, true)) && (empty($args['include']) || in_array($u->ID, $args['include'], true)))); }
+function get_users($args) { $users = array_values(array_filter($GLOBALS['wpUsers'], static fn($u) => (!isset($args['role']) || in_array($args['role'], $u->roles, true)) && (empty($args['include']) || in_array($u->ID, $args['include'], true)))); return ($args['fields'] ?? '') === 'ID' ? array_column($users, 'ID') : $users; }
 function user_can($id, $capability) { return isset($GLOBALS['wpUsers'][$id]) && in_array('administrator', $GLOBALS['wpUsers'][$id]->roles, true); }
 function is_email($email) { return filter_var($email, FILTER_VALIDATE_EMAIL); }
 function wp_mail($to, $subject, $html, $headers) { $GLOBALS['mails'][] = compact('to', 'subject', 'html', 'headers'); return $GLOBALS['mailAccepted']; }
@@ -64,6 +63,7 @@ function set_transient($key, $value, $ttl) { $GLOBALS['transients'][$key] = $val
 function get_transient($key) { return $GLOBALS['transients'][$key] ?? false; }
 function add_action($hook, $callback, $priority = 10, $accepted = 1) { $GLOBALS['actions'][$hook][$priority][] = [$callback, $accepted]; }
 function add_filter(...$args) {}
+function add_shortcode(...$args) {}
 function do_action($hook, ...$args) { $actions = $GLOBALS['actions'][$hook] ?? []; ksort($actions); foreach ($actions as $callbacks) foreach ($callbacks as [$callback, $accepted]) { $callback(...array_slice($args, 0, $accepted)); } }
 function register_rest_route($ns, $route, $args) { $GLOBALS['routes'][$route] = $args; }
 function nocache_headers() {}
@@ -74,9 +74,6 @@ function wp_date($format, $date) { return gmdate($format, $date); }
 function wp_json_encode($v, $flags = 0) { return json_encode($v, $flags); }
 function checked($a, $b, $echo = true) { return $a === $b ? ' checked' : ''; }
 function selected($a, $b, $echo = true) { return $a === $b ? ' selected' : ''; }
-require __DIR__ . '/../includes/class-bzv-afnemer-state.php';
-require __DIR__ . '/../includes/class-bzv-afnemer-google.php';
-require __DIR__ . '/../includes/class-bzv-afnemer-reviews.php';
-require __DIR__ . '/../includes/class-bzv-afnemer-admin.php';
-require __DIR__ . '/../includes/class-bzv-bop-locations.php';
+
+function delete_transient($k) { unset($GLOBALS['transients'][$k]); }
 function check($condition, $message) { if (!$condition) throw new RuntimeException($message); }
