@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.3
+# Bouwlust Zuivel Verkooplocaties — 0.6.4
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
@@ -18,9 +18,14 @@ Een bestaande ACF Google-sleutel blijft behouden. Zonder bestaande ACF-sleutel w
 de publieke getter van GravityWiz Address Autocomplete gebruikt; die sleutel wordt
 beheerd onder Gravity Forms → Instellingen → Autocomplete.
 Er zijn geen aparte Google-instellingen, eigen kaartinterface of servergeocoder.
-ACF verzorgt de zoekfunctie. De kolom BOP-status onderscheidt actief, inactief,
-verlopen bron en onvolledige synchronisatie. De editor toont dezelfde status, uitleg,
-brondatum en zichtbaarheid op de website als alleen-lezen informatie.
+ACF verzorgt de zoekfunctie. Admin Columns Pro beheert de kolom **BOP-status**:
+een aangepast veld `_bop_active`, type Selecteer, keuzes `1 = Actieve afnemer` en
+`0 = Inactieve afnemer`. Filteren, slim filteren en sorteren staan aan; inline/bulk
+bewerken staan uit. Combineer Actieve afnemer met Concepten om locaties af te werken.
+De plugin voegt geen dubbele kolom toe als deze beheerde kolom bestaat.
+De alleen-lezen editorstatus geeft daarnaast verlopen bron, onvolledige synchronisatie,
+uitleg, brondatum en zichtbaarheid op de website aan. Zonder beheerde kolom blijft
+de oorspronkelijke gedetailleerde statuskolom beschikbaar.
 
 BOP-verversingen overschrijven de door een beheerder ingevulde naam, het adres en
 kaartpunt niet. De bronidentiteit en expliciete BOP-aliassen houden de CPT-koppeling
@@ -62,7 +67,8 @@ van volledige Rocket-paginacache, zodat een verlopen bron geen oude markers toon
 
 Pro Map Marker gebruikt `{{dc:looper:field key="latitude"}}`,
 `{{dc:looper:field key="longitude"}}` en `{{dc:looper:field key="popupHtml"}}`.
-De popup ontsmet naam en adres. De vaste Hoeve Bouwlust-marker blijft apart.
+De popup ontsmet naam en adres. Ook Hoeve Bouwlust komt uitsluitend uit BOP;
+de oude vaste boerderijmarker is verwijderd.
 `tools/prepare-pro-map.py` bereidt een native Pro-document voor zonder het te versturen.
 
 ## Installatie en controles

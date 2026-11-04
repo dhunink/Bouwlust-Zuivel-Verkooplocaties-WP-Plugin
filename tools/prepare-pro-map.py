@@ -2,7 +2,7 @@
 """Prepare a native Pro document-update payload. Never sends it or changes WordPress.
 Input: GET /themeco/data/document/11088 (decoded document or compressed {data:...}).
 Output: POST /themeco/data/document-update payload. Review and re-read source before applying.
-Keeps the existing admin-only condition and the permanent Hoeve Bouwlust marker.
+Keeps existing visibility; removes the obsolete fixed Hoeve Bouwlust marker.
 """
 import argparse
 import base64
@@ -58,6 +58,8 @@ def prepare(document):
     marker['map_marker_lng'] = '{{dc:looper:field key="longitude"}}'
     marker['map_marker_content'] = '{{dc:looper:field key="popupHtml"}}'
     marker['map_marker_content_start'] = 'closed'
+    target['_modules'] = [item for item in target['_modules']
+        if item.get('looper_consumer') or item.get('_label') != 'Map Marker - hoeve bouwlust']
     # Append the accessible address list to the same column, not inside the map.
     parents = [item for item in nodes(section) if any(child is target for child in item.get('_modules', []))]
     if len(parents) != 1:
