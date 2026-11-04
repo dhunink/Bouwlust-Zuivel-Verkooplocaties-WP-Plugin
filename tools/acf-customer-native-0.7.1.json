@@ -1,0 +1,276 @@
+[
+  {
+    "key": "group_bzv_legacy_fields",
+    "title": "Oude zuivelvelden (uitgeschakeld)",
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "zuivel_verkooppunt"
+        }
+      ]
+    ],
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "description": "",
+    "show_in_rest": 0,
+    "display_title": "",
+    "allow_ai_access": false,
+    "ai_description": "",
+    "active": false,
+    "fields": [
+      {
+        "key": "field_6a87537d43248",
+        "label": "Straat en huisnummer",
+        "name": "address",
+        "aria-label": "",
+        "type": "text",
+        "instructions": "",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "default_value": "",
+        "maxlength": "",
+        "allow_in_bindings": 0,
+        "placeholder": "",
+        "prepend": "",
+        "append": ""
+      },
+      {
+        "key": "field_6a87547118145",
+        "label": "Postcode",
+        "name": "postal_code",
+        "aria-label": "",
+        "type": "text",
+        "instructions": "",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "default_value": "",
+        "maxlength": "",
+        "allow_in_bindings": 0,
+        "placeholder": "",
+        "prepend": "",
+        "append": ""
+      },
+      {
+        "key": "field_6a87539e43249",
+        "label": "Plaats",
+        "name": "city",
+        "aria-label": "",
+        "type": "text",
+        "instructions": "",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "default_value": "",
+        "maxlength": "",
+        "allow_in_bindings": 0,
+        "placeholder": "",
+        "prepend": "",
+        "append": ""
+      },
+      {
+        "key": "field_6a8753c04324c",
+        "label": "Import-ID",
+        "name": "import_id",
+        "aria-label": "",
+        "type": "text",
+        "instructions": "",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "default_value": "",
+        "maxlength": "",
+        "allow_in_bindings": 0,
+        "placeholder": "",
+        "prepend": "",
+        "append": ""
+      }
+    ]
+  },
+  {
+    "key": "group_6a8753596bc2c",
+    "title": "Zuivel-verkooplocatie (CPT) - eigenschappen",
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "zuivel_verkooppunt"
+        }
+      ]
+    ],
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "description": "",
+    "show_in_rest": 0,
+    "display_title": "",
+    "allow_ai_access": false,
+    "ai_description": "",
+    "active": true,
+    "fields": [
+      {
+        "key": "field_6a8755b152cb6",
+        "label": "Locatie (Google Map)",
+        "name": "location",
+        "aria-label": "",
+        "type": "google_map",
+        "instructions": "Zoek en controleer de juiste vestiging. Dit kaartveld bevat het openbare adres en de coördinaten.",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "center_lat": "",
+        "center_lng": "",
+        "zoom": "",
+        "height": "",
+        "allow_in_bindings": 0
+      },
+      {
+        "key": "field_6aeb36d3db858",
+        "label": "Tonen op de openbare kaart",
+        "name": "show_on_map",
+        "aria-label": "",
+        "type": "true_false",
+        "instructions": "Kies Nee voor een afnemer zonder openbare verkooplocatie. Deze afnemer blijft in WordPress, maar verschijnt niet op de kaart of in de openbare adreslijst. Bij Ja zijn een gecontroleerde Google-locatie en Publiceren nodig.",
+        "required": 0,
+        "conditional_logic": 0,
+        "wrapper": {
+          "width": "",
+          "class": "",
+          "id": ""
+        },
+        "message": "",
+        "default_value": 1,
+        "allow_in_bindings": 0,
+        "ui_on_text": "",
+        "ui_off_text": "",
+        "ui": 1
+      }
+    ]
+  },
+  {
+    "key": "group_bzv_source_status",
+    "title": "BOP en website (alleen-lezen)",
+    "active": true,
+    "position": "side",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "show_in_rest": 0,
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "zuivel_verkooppunt"
+        }
+      ]
+    ],
+    "fields": [
+      {
+        "key": "field_bzv_source_status",
+        "label": "BOP-status",
+        "name": "",
+        "type": "message",
+        "required": 0,
+        "message": "",
+        "new_lines": "br",
+        "esc_html": 1
+      },
+      {
+        "key": "field_bzv_website_status",
+        "label": "Website",
+        "name": "",
+        "type": "message",
+        "required": 0,
+        "message": "",
+        "new_lines": "br",
+        "esc_html": 1
+      },
+      {
+        "key": "field_bzv_source_address",
+        "label": "Adres ter referentie",
+        "name": "",
+        "type": "message",
+        "required": 0,
+        "message": "",
+        "new_lines": "br",
+        "esc_html": 1,
+        "instructions": "Gebruik dit als uitgangspunt bij het zoeken. Het Google-kaartveld bepaalt het openbare adres."
+      },
+      {
+        "key": "field_bzv_review_help",
+        "label": "Controleren en publiceren",
+        "name": "",
+        "type": "message",
+        "required": 0,
+        "message": "Kies Nee bij Tonen op de openbare kaart voor een afnemer zonder openbare verkooplocatie. Voor zichtbaarheid: kies Ja, controleer de Google-locatie en klik bewust op Publiceren. Een concept blijft verborgen. BOP werkt de bronstatus automatisch bij.",
+        "new_lines": "br",
+        "esc_html": 1
+      }
+    ]
+  },
+  {
+    "key": "group_bzv_activity_dates",
+    "title": "Activiteit vanuit BOP",
+    "active": true,
+    "position": "side",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "show_in_rest": 0,
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "zuivel_verkooppunt"
+        }
+      ]
+    ],
+    "fields": [
+      {
+        "key": "field_bzv_inactive_since",
+        "label": "Inactief sinds",
+        "name": "bop_inactive_since",
+        "type": "date_picker",
+        "required": 0,
+        "instructions": "De peildatum waarop BOP deze afnemer voor het eerst niet meer als actief aanleverde. Blijft gelijk zolang de afnemer inactief is; wordt leeggemaakt bij heractivatie. Automatisch bijgewerkt, niet handmatig wijzigen.",
+        "display_format": "d-m-Y",
+        "return_format": "Y-m-d",
+        "first_day": 1,
+        "default_to_current_date": 0,
+        "readonly": 1,
+        "disabled": 1
+      }
+    ]
+  }
+]

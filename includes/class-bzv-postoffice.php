@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
 
-/** Small adapter from Postkantoor's full directory to native WordPress posts. */
+/** Small adapter from Postkantoor's complete active directory to native WordPress posts. */
 final class BZV_Postoffice {
     public const SNAPSHOT = 'bzv_directory_snapshot';
     private const LOCK = 'bzv_directory_lock';
@@ -68,6 +68,16 @@ final class BZV_Postoffice {
         $result = wp_update_post(['ID' => $id, 'post_status' => 'draft'], true);
         if (is_wp_error($result) || get_post_status($id) !== 'draft') { throw new RuntimeException('Een gearchiveerde afnemer kon niet op concept worden gezet.'); }
     }
+    private static function activity(int $id, bool $active, string $assessedOn, string $field): void {
+        $date = (string) get_post_meta($id, 'bop_inactive_since', true);
+        // Record the first confirmed transition, never a failed fetch or an invented historic date.
+        $next = $active ? '' : ($date ?: (get_post_meta($id, '_bop_active', true) === '1' ? str_replace('-', '', $assessedOn) : ''));
+        if ($next !== $date) {
+            update_field($field, $next, $id);
+            if ((string) get_post_meta($id, 'bop_inactive_since', true) !== $next) { throw new RuntimeException('De inactiviteitsdatum kon niet worden opgeslagen.'); }
+        }
+        self::meta($id, '_bop_active', $active ? '1' : '0');
+    }
     public static function sync(bool $manual = false): array {
         if (!$manual && !BZV_Settings::get()['automatic']) { return []; }
         if (!self::acquire()) { return ['ok' => false, 'message' => 'Er loopt al een import.']; }
@@ -91,6 +101,8 @@ final class BZV_Postoffice {
                 foreach ([$customer['customerId'], ...$customer['aliases']] as $key) { $matches = [...$matches, ...($owners[$key] ?? [])]; }
                 $matches = array_values(array_unique($matches)); $id = (int) ($matches[0] ?? 0);
                 if (count($matches) > 1 || ($id && isset($claimed[$id]))) { delete_option(self::SNAPSHOT); throw new RuntimeException('BOP bevat een onduidelijke klantkoppeling. Los de dubbele of gesplitste koppeling eerst in BOP op.'); }
+                // Older Postkantoor versions may still include inactive customers during rollout.
+                if (!$id && !$customer['active']) { continue; }
                 if ($id) { $claimed[$id] = true; }
                 $plan[] = [$id, $slug, $customer];
             }
@@ -115,14 +127,14 @@ final class BZV_Postoffice {
                     self::meta($id, '_bop_address', trim($customer['address'] . ', ' . $customer['postalCode'] . ' ' . $customer['city'], ', '));
                     self::meta($id, '_bop_initialized', '1');
                 }
-                self::meta($id, '_bop_active', $customer['active'] ? '1' : '0');
+                self::activity($id, $customer['active'], $directory['assessedOn'], $fields['bop_inactive_since']);
                 self::meta($id, '_bop_generation', $directory['generation']);
                 if (!$customer['active'] && get_post_status($id) === 'publish') { self::draft($id); }
                 $seen[$id] = true;
             }
             foreach ($posts as $post) {
                 if (!isset($seen[$post->ID]) && get_post_meta($post->ID, '_bop_source_id', true)) {
-                    self::assert_lock(); self::meta($post->ID, '_bop_active', '0');
+                    self::assert_lock(); self::activity($post->ID, false, $directory['assessedOn'], $fields['bop_inactive_since']);
                     if ($post->post_status === 'publish') { self::draft($post->ID); }
                 }
             }

@@ -8,6 +8,7 @@ final class BZV_Native {
     public static function init(): void {
         add_filter('acf/fields/google_map/api', [__CLASS__, 'google_key']);
         add_action('acf/validate_save_post', [__CLASS__, 'validate_editor']);
+        add_filter('acf/update_value/key=field_bzv_inactive_since', [__CLASS__, 'protect_inactive_since'], 20, 2);
         foreach (['field_bzv_source_status', 'field_bzv_website_status', 'field_bzv_source_address'] as $key) { add_filter('acf/prepare_field/key=' . $key, [__CLASS__, 'status_field']); }
         add_action('wp_after_insert_post', [__CLASS__, 'saved'], 30, 1);
         add_action('acf/save_post', [__CLASS__, 'saved'], 30, 1);
@@ -31,14 +32,17 @@ final class BZV_Native {
         $found = [];
         foreach (acf_get_field_groups(['post_type' => self::TYPE]) as $group) {
             foreach ((array) acf_get_fields($group['key']) as $field) {
-                if (!in_array($field['name'], ['location', 'show_on_map'], true)) { continue; }
-                $type = ['location' => 'google_map', 'show_on_map' => 'true_false'][$field['name']] ?? 'text';
+                if (!in_array($field['name'], ['location', 'show_on_map', 'bop_inactive_since'], true)) { continue; }
+                $type = ['location' => 'google_map', 'show_on_map' => 'true_false', 'bop_inactive_since' => 'date_picker'][$field['name']];
                 if (isset($found[$field['name']]) || $field['type'] !== $type) { throw new RuntimeException('Controleer de bestaande ACF-veldgroep: locatievelden zijn niet eenduidig.'); }
                 $found[$field['name']] = $field['key'];
             }
         }
-        if (count($found) !== 2) { throw new RuntimeException('De ACF-velden location en show_on_map ontbreken.'); }
+        if (count($found) !== 3) { throw new RuntimeException('Controleer de ACF-velden location, show_on_map en bop_inactive_since.'); }
         return $fields = $found;
+    }
+    public static function protect_inactive_since($value, $id) {
+        return self::$importing ? $value : get_post_meta((int) $id, 'bop_inactive_since', true);
     }
     public static function point($value): bool {
         return is_array($value) && isset($value['lat'], $value['lng']) && is_numeric($value['lat']) && is_numeric($value['lng']) &&

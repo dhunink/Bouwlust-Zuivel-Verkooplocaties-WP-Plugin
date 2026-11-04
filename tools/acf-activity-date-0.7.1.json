@@ -1,0 +1,37 @@
+[
+  {
+    "key": "group_bzv_activity_dates",
+    "title": "Activiteit vanuit BOP",
+    "active": true,
+    "position": "side",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "show_in_rest": 0,
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "zuivel_verkooppunt"
+        }
+      ]
+    ],
+    "fields": [
+      {
+        "key": "field_bzv_inactive_since",
+        "label": "Inactief sinds",
+        "name": "bop_inactive_since",
+        "type": "date_picker",
+        "required": 0,
+        "instructions": "De peildatum waarop BOP deze afnemer voor het eerst niet meer als actief aanleverde. Blijft gelijk zolang de afnemer inactief is; wordt leeggemaakt bij heractivatie. Automatisch bijgewerkt, niet handmatig wijzigen.",
+        "display_format": "d-m-Y",
+        "return_format": "Y-m-d",
+        "first_day": 1,
+        "default_to_current_date": 0,
+        "readonly": 1,
+        "disabled": 1
+      }
+    ]
+  }
+]

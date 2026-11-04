@@ -1,7 +1,7 @@
-# Bouwlust Zuivel Verkooplocaties — 0.7.0
+# Bouwlust Zuivel Verkooplocaties — 0.7.1
 
 BOP bepaalt de afnemers en hun activiteit. Postkantoor levert de volledige private
-lijst. WordPress beheert de lokale locatie, kaartkeuze en bewuste publicatie.
+lijst van uitsluitend actieve afnemers. WordPress beheert de lokale locatie, kaartkeuze en bewuste publicatie.
 
 ## Standaard beheer
 
@@ -14,6 +14,8 @@ lijst. WordPress beheert de lokale locatie, kaartkeuze en bewuste publicatie.
   de bestaande sleutel uit GravityWiz Address Autocomplete.
 - **ACF true_false** (`show_on_map`) beheert Ja/Nee voor de openbare kaart.
   Bij Nee blijft de afnemer in WordPress en is geocoderen niet verplicht.
+- **ACF Date Picker** (`bop_inactive_since`) toont **Inactief sinds**, alleen-lezen.
+  Admin Columns verzorgt de datumkolom, sortering en datumfilters.
 - **ACF Message** toont BOP-status, website-status en een referentieadres alleen
   ter informatie. De actuele berekening blijft onderdeel van de BOP-koppeling.
 - **Admin Columns Pro** beheert alle lijstkolommen, sortering en slimme filters.
@@ -48,8 +50,14 @@ bewaard; een bestaande eigen Nee wordt nooit door de import overschreven.
 De adapter valideert een volledige Postkantoor-snapshot vóór schrijven, bewaart
 stabiele bronidentiteiten en expliciete aliassen, voorkomt overlappende imports
 en dubbele posts, en bewaart lokale namen, locaties, zichtbaarheid en prullenbak.
-Inactieve/verdwenen afnemers gaan terug naar concept; terugkeer vraagt opnieuw
-publicatie. Een mislukte import publiceert geen onvolledige generatie.
+Inactieve/verdwenen afnemers gaan terug naar concept en blijven bewaard; terugkeer
+vraagt opnieuw publicatie. De inactiviteitsdatum is de Amsterdamse `assessedOn`
+van de eerste geldige volledige lijst waarin een eerder actieve afnemer ontbreekt.
+Een fout, een onvolledige lijst of verlopen gegevens zetten deze datum niet.
+De eerste datum blijft staan zolang de afnemer inactief is en wordt bij terugkeer
+leeggemaakt. De datum is dus de eerste bevestiging, geen achteraf geraden
+historische besteldatum. Onbekende inactieve klanten uit een oudere feed worden
+niet meer aangemaakt. Bestaande prullenbakposten worden niet hersteld of gedupliceerd. Een mislukte import publiceert geen onvolledige generatie.
 
 De Pro-provider `bop-afnemers` levert uitsluitend toegestane afnemers, met
 `postId`, ontsmette `name`/`address`-tekst en numerieke `latitude`/`longitude`.
@@ -78,11 +86,15 @@ Native configuratie staat onder `tools/` als normale ACF-importbestanden:
 2. Configureer de kaart-URL bij WP Rocket Never Cache URL(s) en Always Purge URL(s).
 3. Pas het bestaande Pro-document met `prepare-pro-map.py` aan. Dit behoudt andere
    paginaonderdelen en gebruikt eerst velden die ook 0.6.6 al aanbiedt.
-4. Installeer de update met mapnaam `bwlst-zuivel-verkooplocaties`.
-5. Importeer `acf-customer-native-0.7.0.json`: legacyvelddefinities gaan eerst naar
+4. Importeer eerst `acf-activity-date-0.7.1.json` via ACF Tools. Dit voegt uitsluitend
+   het standaard datumveld toe; bestaande klantwaarden blijven ongemoeid.
+   Installeer daarna de update met mapnaam `bwlst-zuivel-verkooplocaties`.
+5. Importeer `acf-customer-native-0.7.1.json`: legacyvelddefinities gaan eerst naar
    een inactieve groep; de actieve groep houdt de Maps-locatie en kaartschakelaar.
    De nieuwe statusgroep bevat alleen Message-velden. Geen klantwaarden wijzigen.
-6. Gebruik een native ACP Maps-adreskolom in plaats van de drie legacykolommen.
+6. Gebruik `admin-columns-native-0.7.1.json` voor de native Maps-adreskolom en
+   de alleen-lezen datumkolom. De ACP-import maakt nieuwe weergaven; vervang oude
+   weergaven alleen met toestemming en behoud de native export voor herstel.
 7. Controleer de echte ACF-pagina, een bestaande editor, de publicatiekaart en
    verbinding. Voer geen publicatie of testmail uit namens een beheerder.
 
@@ -95,6 +107,12 @@ Controles: `php tests/native-workflow.php` en `python3 tests/pro-map.py`.
 De PHP-suite gebruikt uitsluitend lokale HTTP-/maildubbels. Zij controleert
 onder meer identiteit, archivering, publicatie, ontbrekende kaartkeuze, ACF-
 instellingen, ontvangers, cache en ontsmette Pro-data.
+
+De eenmalige opschoning van 4 november 2026 verplaatste 24 bestaande inactieve
+concepten naar de WordPress-prullenbak. Er is geen periodieke verwijdering en
+geen permanente verwijdering ingebouwd. Voor deze historische records wordt
+geen inactiviteitsdatum verzonnen. Een later opnieuw actieve prullenbakpost
+blijft in de prullenbak totdat een beheerder deze zelf herstelt.
 
 ## Bestaande vertalingen
 

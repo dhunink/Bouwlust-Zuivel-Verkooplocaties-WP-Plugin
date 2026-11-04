@@ -3,6 +3,7 @@ $posts = []; $meta = []; $fieldWrites = []; $failField = ''; $failInsert = false
 $acfFields = [
     ['name' => 'location', 'key' => 'field_6a8755b152cb6', 'type' => 'google_map'],
     ['name' => 'show_on_map', 'key' => 'field_6aeb36d3db858', 'type' => 'true_false'],
+    ['name' => 'bop_inactive_since', 'key' => 'field_bzv_inactive_since', 'type' => 'date_picker'],
 ];
 function acf_get_field_groups($args) { return [['key' => 'group_6a8753596bc2c']]; }
 function acf_get_fields($group) { return $GLOBALS['acfFields']; }
