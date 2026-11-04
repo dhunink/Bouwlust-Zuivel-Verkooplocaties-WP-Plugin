@@ -4,7 +4,34 @@ WordPress-plugin voor de gecontroleerde BOP-afnemerslijst op hoevebouwlust.nl. B
 
 Daarnaast bevat de plugin de kleine, websitebrede aanpassingen die specifiek bij Hoeve Bouwlust horen. Vanaf versie 0.2.1 omvat dit de Nederlandse frontendvertalingen voor Gravity Perks Nested Forms.
 
-## WordPress-controle (0.4.0)
+## Ontvangers kiezen (0.4.1)
+
+Onder **Gereedschap → BOP afnemers → Instellingen en meldingen** kies je alle
+WordPress-beheerders of vink je specifieke WordPress-gebruikers aan. Je kunt op
+naam of e-mailadres zoeken. De eerdere keuze voor alle beheerders blijft behouden
+totdat je zelf een selectie opslaat; nieuwe beheerders worden bij een vaste
+gebruikersselectie niet automatisch toegevoegd.
+
+De plugin bewaart gebruikers-ID's en gebruikt bij verzending het actuele
+e-mailadres. Verwijderde gebruikers en ongeldige adressen vallen weg; dubbele
+adressen krijgen één bericht. Een afgevinkte ontvanger krijgt ook geen nog niet
+aangeboden melding uit de wachtrij. Een al aan de mailvoorziening overgedragen
+bericht kan niet worden teruggehaald. Meldingen inschakelen met een lege selectie
+wordt geweigerd; met meldingen uit mag de selectie leeg zijn.
+
+Selectie geeft geen extra rechten. Het scherm vermeldt welke gebruikers locaties
+kunnen controleren. De bestaande beheercontrole blijft gelden, ook voor ontvangers
+zonder beheerrechten. Het oude vrije e-mailveld is vervangen; als die oude keuze
+was opgeslagen, blijven meldingen uit totdat gebruikers bewust zijn geselecteerd.
+
+Voor WPVibe/integraties zijn `GET /wp-json/bzv/v1/afnemers/recipient-options` en
+`POST /wp-json/bzv/v1/afnemers/recipients` beschikbaar na installatie. Beide vereisen
+de bestaande `manage_options`-bevoegdheid. POST neemt alleen `recipientMode`
+(`administrators` of `users`) en `recipientUserIds` (array) over; Google-sleutels,
+mailactivering en andere instellingen worden niet gelezen of aangepast via deze
+route. De validatie is dezelfde als in het instellingenformulier.
+
+## WordPress-controle (vanaf 0.4.0)
 
 BOP bepaalt de activiteit uit leverdatums, historische pakbonnen én toekomstige
 bestellingen. Postkantoor levert een private, volledige lijst via
@@ -32,7 +59,8 @@ WordPress volstaat; een VPN is niet nodig. Een klik op de mailknop publiceert ni
 ### Meldingen en Google-instellingen
 
 Alle actuele WordPress-gebruikers met de rol **administrator** zijn standaard
-ontvanger. Dubbele e-mailadressen krijgen één bericht. Dennis heeft automatische
+ontvanger, totdat een beheerder de hierboven beschreven gebruikersselectie kiest.
+Dubbele e-mailadressen krijgen één bericht. Dennis heeft automatische
 afnemercontroles expliciet uitgezonderd van zijn communicatiegrens. De eerste
 import wordt gebundeld in één kort bericht per beheerder; nieuwe controles krijgen
 later een nieuwe melding. Meldingen staan uit totdat de koppeling en Google klaar
@@ -74,11 +102,11 @@ onderneming op dat adres is gevestigd.
 2. Installeer de bijbehorende BOP-release via het releasecentrum. Zet
    `BopPostOffice__PublishCustomerDirectoryEnabled=true` en
    `CustomerLocations__ReviewInWordPress=true`; herstart volgens de releaseprocedure.
-3. Installeer plugin 0.4.0 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
+3. Installeer plugin 0.4.1 als update van `bwlst-zuivel-verkooplocaties`. De nieuwe
    route staat standaard uit; bestaande instellingen/vertalingen blijven behouden.
 4. Kies het bestaande API Connections-profiel, vul de WordPress-Googlekeys in en
    activeer de WordPress-controle. Vernieuw de lijst en controleer een echte
-   locatie via het scherm. Activeer meldingen met **Alle WordPress-beheerders**.
+   locatie via het scherm. Kies de ontvangers en activeer daarna meldingen.
 5. Controleer de echte Pro-kaart met minstens één door een beheerder goedgekeurde
    locatie vóór het kaartonderdeel voor bezoekers wordt gepubliceerd. De bestaande
    Pro-markers en shortcode hoeven voor deze gegevenswissel niet aangepast te worden.

@@ -7,14 +7,43 @@ final class BZV_Afnemer_Reviews {
     private const LOCK = 'bzv_afnemer_lock';
     private static ?string $lock = null;
     public static function settings(): array {
-        return array_merge(['enabled' => false, 'emailEnabled' => false, 'recipientMode' => 'administrators', 'recipients' => ['dennis@hoevebouwlust.nl'],
+        $settings = array_merge(['enabled' => false, 'emailEnabled' => false, 'recipientMode' => 'administrators', 'recipientUserIds' => [],
             'browserKey' => '', 'serverKey' => '', 'mapId' => '47fb9ccd93293e4b50ccd2ee'], (array) get_option(self::SETTINGS, []));
+        // Never turn old free-text addresses or an unknown mode into a broader audience.
+        if (!in_array($settings['recipientMode'], ['administrators', 'users'], true)) {
+            $settings['recipientMode'] = 'users'; $settings['recipientUserIds'] = []; $settings['emailEnabled'] = false;
+        }
+        unset($settings['recipients']);
+        return $settings;
     }
     public static function recipients(): array {
+        wp_cache_delete(self::SETTINGS, 'options');
         $s = self::settings();
-        if ($s['recipientMode'] !== 'administrators') { return $s['recipients']; }
+        $query = ['role' => 'administrator', 'fields' => ['ID', 'user_email']];
+        if ($s['recipientMode'] === 'users') {
+            $ids = array_filter((array) $s['recipientUserIds'], static fn($id) => is_int($id) && $id > 0);
+            if (!$ids) { return []; } // WordPress treats include=[] as an unrestricted query.
+            $query = ['include' => $ids, 'fields' => ['ID', 'user_email']];
+        }
         return array_values(array_unique(array_filter(array_map(static fn($user) => strtolower($user->user_email),
-            get_users(['role' => 'administrator', 'fields' => ['user_email']])), 'is_email')));
+            get_users($query)), 'is_email')));
+    }
+    public static function recipient_options() {
+        if (!self::permission()) { return new WP_Error('forbidden', 'Geen toegang.', ['status' => 403]); }
+        nocache_headers();
+        $s = self::settings();
+        return ['recipientMode' => $s['recipientMode'], 'recipientUserIds' => $s['recipientUserIds'],
+            'users' => array_map(static fn($user) => ['id' => (int) $user->ID, 'name' => $user->display_name,
+                'email' => $user->user_email, 'canReview' => user_can((int) $user->ID, 'manage_options'), 'validEmail' => (bool) is_email($user->user_email)],
+                get_users(['orderby' => 'display_name', 'order' => 'ASC', 'fields' => ['ID', 'display_name', 'user_email']]))];
+    }
+    public static function update_recipients(array $input) {
+        if (!self::permission()) { return new WP_Error('forbidden', 'Geen toegang.', ['status' => 403]); }
+        try {
+            $before = self::settings(); $after = BZV_Afnemer_Admin::recipient_settings($input, $before);
+            if ($after !== $before && !update_option(self::SETTINGS, $after, false)) { throw new RuntimeException('Opslaan is niet gelukt. Probeer het opnieuw.'); }
+            return ['recipientMode' => $after['recipientMode'], 'recipientUserIds' => $after['recipientUserIds']];
+        } catch (RuntimeException $e) { return new WP_Error('afnemer_recipients', $e->getMessage(), ['status' => 400]); }
     }
     public static function connection_changed(): void {
         if (!self::acquire()) { throw new RuntimeException('Er loopt een controle. Probeer de profielwisseling later opnieuw.'); }
@@ -36,6 +65,10 @@ final class BZV_Afnemer_Reviews {
     }
     public static function permission(): bool { return current_user_can('manage_options'); }
     public static function routes(): void {
+        register_rest_route('bzv/v1', '/afnemers/recipient-options', ['methods' => 'GET',
+            'permission_callback' => [__CLASS__, 'permission'], 'callback' => [__CLASS__, 'recipient_options']]);
+        register_rest_route('bzv/v1', '/afnemers/recipients', ['methods' => 'POST',
+            'permission_callback' => [__CLASS__, 'permission'], 'callback' => static fn($request) => self::update_recipients($request->get_json_params() ?? [])]);
         foreach (['lookup', 'save', 'withdraw', 'retry-mail'] as $action) {
             register_rest_route('bzv/v1', '/afnemers/' . $action, ['methods' => 'POST',
                 'permission_callback' => [__CLASS__, 'permission'], 'callback' => static fn($request) => self::handle($action, $request->get_json_params() ?? [])]);
@@ -253,7 +286,10 @@ final class BZV_Afnemer_Reviews {
                     $r = $state['records'][$item['id']] ?? null;
                     if ($r && $r['active'] && !$r['approvedAt'] && !$r['deferred'] && $r['reviewVersion'] === $item['version']) { $records[] = $r; }
                 }
-                if (!$records || !in_array($job['recipient'], self::recipients(), true)) { $job['state'] = 'cancelled'; }
+                if (!$records || !in_array($job['recipient'], self::recipients(), true)) {
+                    $job['state'] = 'cancelled';
+                    foreach ($job['items'] as $item) { $state['notices'][$item['key']]['state'] = 'cancelled'; }
+                }
                 else { $mail = self::mail($records); $recipient = $job['recipient']; $job['state'] = 'sending'; $job['startedAt'] = time(); $job['attempts']++; }
                 unset($job); self::persist($state);
             } finally { self::release(); }

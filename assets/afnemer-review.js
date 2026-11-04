@@ -2,6 +2,29 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
+  if ($('bzv-recipient-mode')) {
+    const mode = $('bzv-recipient-mode');
+    const choices = [...document.querySelectorAll('.bzv-recipient')];
+    const updateRecipients = () => {
+      const selecting = mode.value === 'users';
+      $('bzv-recipient-users').hidden = !selecting;
+      $('bzv-all-admins-note').hidden = selecting;
+      const needle = $('bzv-recipient-search').value.trim().toLocaleLowerCase('nl');
+      let visible = 0, selected = 0;
+      choices.forEach((choice) => {
+        const checkbox = choice.querySelector('input');
+        if (checkbox.checked && !checkbox.disabled) selected++;
+        choice.hidden = !choice.dataset.filter.includes(needle);
+        if (!choice.hidden) visible++;
+      });
+      $('bzv-recipient-count').textContent = selected + (selected === 1 ? ' gebruiker geselecteerd' : ' gebruikers geselecteerd');
+      $('bzv-recipient-empty').hidden = visible !== 0;
+    };
+    mode.addEventListener('change', updateRecipients);
+    $('bzv-recipient-search').addEventListener('input', updateRecipients);
+    $('bzv-recipient-users').addEventListener('change', updateRecipients);
+    updateRecipients();
+  }
   $('bzv-filter')?.addEventListener('input', (event) => {
     const needle = event.target.value.toLocaleLowerCase('nl');
     document.querySelectorAll('.bzv-row').forEach((row) => { row.hidden = !row.dataset.filter.includes(needle); });

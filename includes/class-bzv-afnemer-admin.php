@@ -2,6 +2,31 @@
 if (!defined('ABSPATH')) { exit; }
 
 final class BZV_Afnemer_Admin {
+    public static function recipient_settings(array $input, array $settings): array {
+        $mode = $input['recipientMode'] ?? '';
+        if (!in_array($mode, ['administrators', 'users'], true)) { throw new RuntimeException('Kies alle beheerders of geselecteerde WordPress-gebruikers.'); }
+        $settings['recipientMode'] = $mode;
+        if ($mode === 'users') {
+            $raw = $input['recipientUserIds'] ?? [];
+            if (!is_array($raw) || count($raw) > 100) { throw new RuntimeException('Selecteer maximaal honderd WordPress-gebruikers.'); }
+            $ids = [];
+            foreach ($raw as $id) {
+                if ((!is_int($id) && !is_string($id)) || !preg_match('/\A[1-9][0-9]*\z/', (string) $id) || filter_var($id, FILTER_VALIDATE_INT) === false) {
+                    throw new RuntimeException('De gebruikersselectie is ongeldig. Laad de pagina opnieuw.');
+                }
+                $ids[] = (int) $id;
+            }
+            $ids = array_values(array_unique($ids)); sort($ids);
+            $users = $ids ? get_users(['include' => $ids, 'fields' => ['ID', 'user_email']]) : [];
+            if (count($users) !== count($ids) || array_filter($users, static fn($user) => !is_email($user->user_email))) {
+                throw new RuntimeException('Een geselecteerde gebruiker bestaat niet meer of heeft geen geldig e-mailadres. Laad de pagina opnieuw.');
+            }
+            if (!$ids && $settings['emailEnabled']) { throw new RuntimeException('Selecteer minstens één gebruiker of schakel automatische meldingen uit.'); }
+            $settings['recipientUserIds'] = $ids;
+        }
+        unset($settings['recipients']);
+        return $settings;
+    }
     public static function assets(string $hook): void {
         if ($hook !== 'tools_page_bop-afnemers' || !current_user_can('manage_options')) { return; }
         wp_enqueue_style('bzv-afnemer-review', plugins_url('assets/afnemer-review.css', BZV_PLUGIN_FILE), [], BZV_VERSION);
@@ -15,12 +40,8 @@ final class BZV_Afnemer_Admin {
         check_admin_referer('bzv_afnemer_settings');
         $s = BZV_Afnemer_Reviews::settings();
         $s['enabled'] = isset($_POST['enabled']); $s['emailEnabled'] = isset($_POST['emailEnabled']);
-        $s['recipientMode'] = ($_POST['recipientMode'] ?? '') === 'administrators' ? 'administrators' : 'selected';
-        if ($s['recipientMode'] === 'selected') {
-            $raw = preg_split('/[\s,;]+/', trim((string) wp_unslash($_POST['recipients'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);
-            if (!$raw || count($raw) > 20 || array_filter($raw, static fn($email) => !is_email($email))) { wp_die('Vul maximaal twintig geldige ontvangers in.'); }
-            $s['recipients'] = array_values(array_unique(array_map('strtolower', $raw)));
-        }
+        try { $s = self::recipient_settings(wp_unslash($_POST), $s); }
+        catch (RuntimeException $e) { wp_die(esc_html($e->getMessage())); }
         foreach (['browserKey', 'serverKey'] as $key) {
             $value = trim((string) wp_unslash($_POST[$key] ?? ''));
             if ($value !== '') {
@@ -104,14 +125,24 @@ final class BZV_Afnemer_Admin {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_afnemer_settings">';
         wp_nonce_field('bzv_afnemer_settings');
         echo '<p><label><input type="checkbox" name="enabled"' . checked($s['enabled'], true, false) . '> Locaties in WordPress controleren en publiceren</label></p><p><label><input type="checkbox" name="emailEnabled"' . checked($s['emailEnabled'], true, false) . '> Automatische afnemermeldingen inschakelen</label></p>';
-        echo '<label for="bzv-recipient-mode">Ontvangers</label><select id="bzv-recipient-mode" name="recipientMode"><option value="administrators"' . selected($s['recipientMode'], 'administrators', false) . '>Alle WordPress-beheerders</option><option value="selected"' . selected($s['recipientMode'], 'selected', false) . '>Zelf opgegeven adressen</option></select>';
-        echo '<label for="bzv-recipients">Zelf opgegeven adressen (alleen bij die keuze)</label><textarea id="bzv-recipients" name="recipients" rows="2">' . esc_textarea(implode("\n", $s['recipients'])) . '</textarea>';
-        echo '<p class="description">Bij activering bundelen we bestaande controles in één bericht per beheerder. Latere meldingen gaan alleen over nieuwe controles.</p><h3>Google</h3><p>Gebruik aparte sleutels voor deze website en voor de webserver. Bestaande sleutels worden niet weergegeven; laat een veld leeg om de ingestelde sleutel te behouden.</p>';
+        self::recipient_fields($s);
+        echo '<p class="description">Bij activering bundelen we bestaande controles in één bericht per ontvanger. Latere meldingen gaan alleen over nieuwe controles.</p><h3>Google</h3><p>Gebruik aparte sleutels voor deze website en voor de webserver. Bestaande sleutels worden niet weergegeven; laat een veld leeg om de ingestelde sleutel te behouden.</p>';
         foreach (['browserKey' => 'Browsersleutel (Maps JavaScript en Places UI Kit)', 'serverKey' => 'Serversleutel (alleen Geocoding)'] as $key => $label) {
             echo '<label for="bzv-setting-' . esc_attr($key) . '">' . esc_html($label) . '</label><input id="bzv-setting-' . esc_attr($key) . '" name="' . esc_attr($key) . '" type="password" autocomplete="new-password" placeholder="' . ($s[$key] ? 'Ingesteld — leeg laten om te behouden' : 'Nog niet ingesteld') . '">';
         }
         echo '<label for="bzv-map-id">Google map-ID</label><input id="bzv-map-id" name="mapId" value="' . esc_attr($s['mapId']) . '">';
         submit_button('Instellingen opslaan'); echo '</form></details>';
+    }
+    public static function recipient_fields(array $s): void {
+        $options = BZV_Afnemer_Reviews::recipient_options();
+        if (is_wp_error($options)) { return; }
+        echo '<label for="bzv-recipient-mode">Wie ontvangt de afnemermeldingen?</label><select id="bzv-recipient-mode" name="recipientMode"><option value="administrators"' . selected($s['recipientMode'], 'administrators', false) . '>Alle WordPress-beheerders</option><option value="users"' . selected($s['recipientMode'], 'users', false) . '>Geselecteerde WordPress-gebruikers</option></select>';
+        echo '<p id="bzv-all-admins-note" class="description">Bij alle beheerders volgen de ontvangers automatisch de beheerdersrol, ook als er later een beheerder bijkomt.</p>';
+        echo '<fieldset id="bzv-recipient-users"><legend>Gebruikers selecteren</legend><p class="description">Deze selectie geldt bij ‘Geselecteerde WordPress-gebruikers’. We gebruiken hun actuele e-mailadres. Dubbele adressen krijgen één bericht.</p><label for="bzv-recipient-search">Zoeken op naam of e-mailadres</label><input type="search" id="bzv-recipient-search" placeholder="Zoek een gebruiker"><p id="bzv-recipient-count" aria-live="polite"></p><div class="bzv-user-list">';
+        foreach ($options['users'] as $user) {
+            echo '<label class="bzv-recipient" data-filter="' . esc_attr(strtolower($user['name'] . ' ' . $user['email'])) . '"><input type="checkbox" name="recipientUserIds[]" value="' . $user['id'] . '"' . checked(in_array($user['id'], $s['recipientUserIds'], true), true, false) . (!$user['validEmail'] ? ' disabled' : '') . '><span><strong>' . esc_html($user['name']) . '</strong><span>' . esc_html($user['email']) . '</span><small>' . (!$user['validEmail'] ? 'Geen geldig e-mailadres' : ($user['canReview'] ? 'Kan locaties controleren' : 'Ontvangt de melding; kan geen locaties controleren')) . '</small></span></label>';
+        }
+        echo '</div><p id="bzv-recipient-empty" hidden>Geen gebruikers gevonden.</p><p class="description">Selecteren geeft geen extra beheerrechten. Locaties controleren en goedkeuren blijft voorbehouden aan gebruikers met de bestaande beheerrechten.</p></fieldset>';
     }
     private static function mail_status(array $state): void {
         $issues = array_filter($state['jobs'], static fn($j) => $j['state'] === 'failed' || ($j['state'] === 'sending' && ($j['startedAt'] ?? 0) < time() - 300));

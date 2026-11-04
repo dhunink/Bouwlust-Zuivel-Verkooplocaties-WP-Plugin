@@ -159,7 +159,7 @@ final class BZV_Afnemer_State {
             foreach ($state['records'] as $r) {
                 if (!$r['active'] || $r['approvedAt'] || $r['deferred']) { continue; }
                 $key = hash('sha256', $r['id'] . ':' . $r['reviewVersion'] . ':' . strtolower($recipient));
-                if (isset($state['notices'][$key])) { continue; }
+                if (isset($state['notices'][$key]) && $state['notices'][$key]['state'] !== 'cancelled') { continue; }
                 $items[] = ['id' => $r['id'], 'version' => $r['reviewVersion'], 'key' => $key];
                 $state['notices'][$key] = ['at' => $now, 'state' => 'queued'];
             }
