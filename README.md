@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.0
+# Bouwlust Zuivel Verkooplocaties — 0.6.1
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
@@ -11,8 +11,9 @@ Open **Zuivel-verkooppunten**, controleer de naam en vul de bestaande ACF-velden
 ACF Google Map-veld en klik bewust op **Publiceren**. Concept opslaan publiceert
 niets. De oude aparte controlepagina verwijst voortaan naar deze CPT-lijst.
 
-De Google-sleutel wordt via de publieke getter van GravityWiz Address Autocomplete
-hergebruikt. Sleutelbeheer blijft onder Gravity Forms → Instellingen → Autocomplete.
+Een bestaande ACF Google-sleutel blijft behouden. Zonder bestaande ACF-sleutel wordt
+de publieke getter van GravityWiz Address Autocomplete gebruikt; die sleutel wordt
+beheerd onder Gravity Forms → Instellingen → Autocomplete.
 Er zijn geen aparte Google-instellingen, eigen kaartinterface of servergeocoder.
 ACF verzorgt de zoekfunctie; beschikbare BOP-adressen worden bij de eerste import
 vooringevuld. Als BOP geen adres kent, zoek en controleer je de vestiging zelf.

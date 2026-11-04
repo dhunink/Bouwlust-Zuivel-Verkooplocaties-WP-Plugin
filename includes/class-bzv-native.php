@@ -24,7 +24,7 @@ final class BZV_Native {
         add_action('template_redirect', static function () { if (is_page(11088)) { if (!defined('DONOTCACHEPAGE')) { define('DONOTCACHEPAGE', true); } nocache_headers(); } });
     }
     public static function google_key(array $api): array {
-        if (function_exists('gp_address_autocomplete')) {
+        if (empty($api['key']) && function_exists('gp_address_autocomplete')) {
             $key = gp_address_autocomplete()->get_google_api_key();
             if (is_string($key) && $key !== '') { $api['key'] = $key; }
         }

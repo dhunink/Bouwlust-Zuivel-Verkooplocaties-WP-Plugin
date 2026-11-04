@@ -23,6 +23,7 @@ check(BZV_Settings::get()['recipients'] === [1, 2], 'Existing administrator reci
 check(!BZV_Settings::get()['automatic'], 'Upgrade never imports before the operator removes the old posts.');
 $store[BZV_Settings::OPTION] = ['profile' => 123, 'automatic' => true, 'email' => true, 'recipients' => [1, 4]];
 check(BZV_Native::google_key(['libraries' => 'places']) === ['libraries' => 'places', 'key' => 'existing-gravitywiz-fixture'], 'ACF reuses GravityWiz key through its getter without storing a second key.');
+check(BZV_Native::google_key(['key' => 'existing-acf-fixture'])['key'] === 'existing-acf-fixture', 'A working ACF configuration is never overwritten by a differently restricted GravityWiz key.');
 // Full private contract validation must finish before the first post is created.
 $original = $directory;
 foreach ([['customers', [$directory['customers'][0], $directory['customers'][0]]], ['generation', '1e9'], ['publishedAt', '2000-01-01T00:00:00Z']] as [$key, $bad]) {

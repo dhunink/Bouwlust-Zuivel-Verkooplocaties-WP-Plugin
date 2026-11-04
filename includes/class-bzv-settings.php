@@ -8,7 +8,7 @@ final class BZV_Settings {
         add_action('admin_menu', static fn() => add_options_page('BOP-koppeling', 'BOP-koppeling', 'manage_options', 'bop-connection', [__CLASS__, 'page']));
         add_action('admin_init', [__CLASS__, 'register']);
         add_action('admin_post_bzv_directory_import', [__CLASS__, 'run']);
-        add_action('admin_init', static function () {
+        add_action('admin_menu', static function () {
             if (($_GET['page'] ?? '') === 'bop-afnemers' && current_user_can('manage_options')) { wp_safe_redirect(admin_url('edit.php?post_type=' . BZV_Native::TYPE)); exit; }
         });
     }
@@ -64,7 +64,7 @@ final class BZV_Settings {
         settings_errors(); $status = get_option('bzv_directory_status', []);
         if ($status) { echo '<div class="notice notice-' . (!empty($status['ok']) ? 'success' : 'warning') . ' inline"><p>' . esc_html($status['message']) . ' (' . esc_html(wp_date('d-m-Y H:i', $status['at'])) . ')</p></div>'; }
         echo '<form method="post" action="options.php">'; settings_fields('bzv_connection'); do_settings_sections('bop-connection'); submit_button(); echo '</form>';
-        echo '<p>Google wordt gebruikt via het bestaande ACF-kaartveld. De sleutel komt uit <a href="' . esc_url(admin_url('admin.php?page=gf_settings&subview=gp-address-autocomplete')) . '">Gravity Forms → Instellingen → Autocomplete</a>. Er zijn hier geen aparte Google-sleutels.</p>';
+        echo '<p>Google wordt gebruikt via het bestaande ACF-kaartveld. De bestaande ACF-sleutel blijft behouden; anders wordt de sleutel hergebruikt uit <a href="' . esc_url(admin_url('admin.php?page=gf_settings&subview=gp-address-autocomplete')) . '">Gravity Forms → Instellingen → Autocomplete</a>. Er zijn hier geen aparte Google-sleutels.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="bzv_directory_import">'; wp_nonce_field('bzv_directory_import');
         submit_button('Verbinding testen', 'secondary', 'test', false); echo ' '; submit_button('Nu importeren', 'secondary', 'import', false); echo '</form></div>';
     }
