@@ -1,0 +1,13 @@
+{
+  "parent": "group_6a8753596bc2c",
+  "key": "field_6aeb36d3db858",
+  "label": "Tonen op de openbare kaart",
+  "name": "show_on_map",
+  "type": "true_false",
+  "instructions": "Kies Nee voor een afnemer zonder openbare verkooplocatie. Deze afnemer blijft in WordPress, maar verschijnt niet op de kaart of in de openbare adreslijst. Bij Ja zijn een gecontroleerde Google-locatie en Publiceren nodig.",
+  "required": 0,
+  "default_value": 1,
+  "ui": 1,
+  "ui_on_text": "",
+  "ui_off_text": ""
+}

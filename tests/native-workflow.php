@@ -44,7 +44,7 @@ foreach (['address', 'postal_code', 'city'] as $name) { update_post_meta($postId
 $map = ['address' => 'Dorpsstraat 12, 1234 AB Testdorp, Nederland', 'street_name' => 'Dorpsstraat', 'street_number' => '12', 'post_code' => '1234 AB', 'city' => 'Testdorp', 'lat' => 52.0, 'lng' => 4.0];
 update_field('field_6a8755b152cb6', $map, $postId);
 check(BZV_Native::source_status($postId)[0] === 'Actieve afnemer' && BZV_Native::website_status($postId) === 'Verborgen — nog niet gepubliceerd', 'BOP activity is distinct from native publication.');
-foreach ($acfFields as $field) { check((BZV_Native::prepare_field($field) === false) === ($field['name'] !== 'location'), 'Only the native map remains editable; derived address and import-ID are hidden.'); }
+foreach ($acfFields as $field) { check((BZV_Native::prepare_field($field) === false) === !in_array($field['name'], ['location', 'show_on_map'], true), 'Native map and visibility remain editable; derived address and import-ID are hidden.'); }
 check(BZV_Native::prepare_field(['name' => 'acf[field_6a87537d43248]', '_name' => 'address', 'key' => 'field_6a87537d43248']) === false, 'ACF prefixes field names before prepare_field; key matching still hides the input.');
 check(BZV_Native::prepare_field(['name' => 'address', 'key' => 'unrelated_field']) !== false, 'Other ACF forms retain their own address fields.');
 update_post_meta($postId, 'import_id', 'original-id');
@@ -55,6 +55,23 @@ $purged = []; wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(get_post_status($postId) === 'publish' && count(BZV_Native::looper()) === 1 && $purged === [['https://example.test/zuivel/']], 'Native Publish exposes the ACF point and invalidates the target WP Rocket page.');
 check(get_post_meta($postId, 'address') === 'Dorpsstraat 12' && get_post_meta($postId, 'postal_code') === '1234 AB' && get_post_meta($postId, 'city') === 'Testdorp', 'Saving derives existing list columns from the canonical map.');
 check(BZV_Native::website_status($postId) === 'Zichtbaar op de zuivelkaart', 'Read-only website status reflects actual published marker eligibility.');
+check(BZV_Native::show_on_map($postId), 'Missing visibility metadata preserves existing approved locations.');
+$purged = []; update_field('field_6aeb36d3db858', '0', $postId);
+check(!BZV_Native::looper() && !str_contains(BZV_Native::address_list(), 'Dorpsstraat') && get_post_status($postId) === 'publish', 'Opt-out hides marker and public address without unpublishing the customer.');
+check($purged === [['https://example.test/zuivel/']] && str_contains(BZV_Native::website_status($postId), 'staat uit'), 'Visibility changes purge the target page and explain the hidden state.');
+BZV_Postoffice::sync(true); check(!BZV_Native::show_on_map($postId) && !BZV_Native::looper(), 'Repeated BOP imports preserve the local visibility choice.');
+$_POST['acf']['field_6aeb36d3db858'] = '0'; $_POST['acf']['field_6a8755b152cb6'] = '';
+$validationErrors = []; BZV_Native::validate_editor(); check(!$validationErrors, 'A hidden customer needs no geocoding in the native editor.');
+update_field('field_6a8755b152cb6', '', $postId); BZV_Native::saved($postId);
+check(get_post_status($postId) === 'publish' && !BZV_Native::looper(), 'Saving a hidden customer without a map retains publication and stays private to the map.');
+$_POST['acf']['field_6aeb36d3db858'] = '1'; $validationErrors = []; BZV_Native::validate_editor();
+check(count($validationErrors) === 1, 'Re-enabling a hidden location requires a valid map even when the saved choice is off.');
+update_field('field_6aeb36d3db858', '1', $postId); BZV_Native::saved($postId);
+check(get_post_status($postId) === 'draft' && !BZV_Native::looper(), 'Non-ACF enable without a location fails closed to draft.');
+update_field('field_6a8755b152cb6', $map, $postId); $_POST['acf']['field_6a8755b152cb6'] = json_encode($map);
+check(!BZV_Native::looper(), 'Enabled drafts still require conscious publication.');
+wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
+check(count(BZV_Native::looper()) === 1, 'A reviewed enabled location returns after native publication.');
 $minimalMap = ['address' => 'Een adres zonder losse Google-onderdelen', 'lat' => 52.0, 'lng' => 4.0];
 check(BZV_Native::valid_location($minimalMap) && BZV_Native::location_address($minimalMap)['address'] === $minimalMap['address'], 'Optional Google address components never require duplicate manual input.');
 check(!BZV_Native::valid_location(['lat' => 52, 'lng' => 4]) && !BZV_Native::valid_location(['address' => 'x', 'lat' => '1e999', 'lng' => 4]), 'Missing address and non-finite points remain blocked.');

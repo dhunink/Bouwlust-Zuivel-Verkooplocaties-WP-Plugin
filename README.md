@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.4
+# Bouwlust Zuivel Verkooplocaties — 0.6.5
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
@@ -13,6 +13,17 @@ en het import-ID zijn verborgen. Het import-ID is bovendien via ACF niet te wijz
 Adreskolommen worden uit de kaart afgeleid; ontbrekende optionele Google-onderdelen
 blokkeren publicatie niet zolang het kaartveld een adres en geldige positie bevat. Concept opslaan publiceert
 niets. De oude aparte controlepagina verwijst voortaan naar deze CPT-lijst.
+
+De native ACF Ja/Nee-schakelaar **Tonen op de openbare kaart** (`show_on_map`)
+staat standaard op Ja. Kies Nee voor afnemers zonder openbare verkooplocatie:
+de post blijft in WordPress, maar kaart én openbare adreslijst slaan hem over.
+Bij Nee is een Google-locatie niet verplicht. Opnieuw tonen vereist nog steeds
+een actuele actieve BOP-afnemer, een geldige locatie en een gepubliceerde post.
+De alleen-lezen Website-status vermeldt wanneer de schakelaar uitstaat.
+BOP-imports bewaren deze lokale keuze. Het veld wordt in de bestaande ACF-groep
+beheerd; er is geen aparte formulier- of opslagcode. De veldconfiguratie staat
+in `tools/acf-map-visibility.json`; bestaande locaties zonder opgeslagen waarde
+behouden hetzelfde gedrag als de standaard Ja.
 
 Een bestaande ACF Google-sleutel blijft behouden. Zonder bestaande ACF-sleutel wordt
 de publieke getter van GravityWiz Address Autocomplete gebruikt; die sleutel wordt
@@ -56,7 +67,8 @@ eigen mailwachtrij of automatisch herstel van mislukte/onderbroken verzending.
 ## Kaart en cache
 
 De bestaande Pro-provider `bop-afnemers` en shortcode `[bop_afnemers]` lezen uitsluitend
-actieve, gepubliceerde CPT-posts met complete ACF-locatiegegevens en een actuele
+actieve, gepubliceerde CPT-posts met Tonen op de openbare kaart aan,
+complete ACF-locatiegegevens en een actuele
 BOP-generatie. Postkantoor hoeft bij paginaweergave niet te worden opgevraagd.
 Een bronlijst ouder dan 48 uur levert geen publieke markers. Een netwerkfout bewaart
 de vorige geldige lijst tot die grens. Een lege bronlijst archiveert eerdere koppelingen.
@@ -78,6 +90,8 @@ de oude vaste boerderijmarker is verwijderd.
 - Postkantoor: `/v1/customer-directory`, publishscope voor BOP en readscope voor
   het bestaande WordPress-profiel. De bearer blijft uitsluitend in API Connections.
 - Installeer als update met mapnaam `bwlst-zuivel-verkooplocaties`.
+- Voeg in de bestaande ACF-groep het true_false-veld `show_on_map` toe, met
+  standaardwaarde1 en gestileerdeUI. De livegroep bevat dit vanaf0.6.5.
 - Test de verbinding, verwijder de oude lijst naar de prullenbak, activeer de gewenste
   import/meldingen en importeer. Controleer daarna een echte vestiging bewust.
 - `php tests/native-workflow.php`: contract, identiteiten, CPT/ACF, publiceren,

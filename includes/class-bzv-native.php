@@ -40,8 +40,9 @@ final class BZV_Native {
         $found = [];
         foreach (acf_get_field_groups(['post_type' => self::TYPE]) as $group) {
             foreach ((array) acf_get_fields($group['key']) as $field) {
-                if (!in_array($field['name'], ['address', 'postal_code', 'city', 'location', 'import_id'], true)) { continue; }
-                if (isset($found[$field['name']]) || $field['type'] !== ($field['name'] === 'location' ? 'google_map' : 'text')) { throw new RuntimeException('Controleer de bestaande ACF-veldgroep: locatievelden zijn niet eenduidig.'); }
+                if (!in_array($field['name'], ['address', 'postal_code', 'city', 'location', 'import_id', 'show_on_map'], true)) { continue; }
+                $type = ['location' => 'google_map', 'show_on_map' => 'true_false'][$field['name']] ?? 'text';
+                if (isset($found[$field['name']]) || $field['type'] !== $type) { throw new RuntimeException('Controleer de bestaande ACF-veldgroep: locatievelden zijn niet eenduidig.'); }
                 $found[$field['name']] = $field['key'];
             }
         }
@@ -72,6 +73,11 @@ final class BZV_Native {
     public static function valid(int $id): bool {
         return trim((string) get_post($id)->post_title) !== '' && self::valid_location(get_post_meta($id, 'location', true));
     }
+    public static function show_on_map(int $id): bool {
+        $value = get_post_meta($id, 'show_on_map', true);
+        // Match the native ACF default; existing approved locations need no migration.
+        return $value === '' || (string) $value === '1';
+    }
     private static function derive_address(int $id): void {
         $address = self::location_address(get_post_meta($id, 'location', true));
         $fields = self::fields(); self::$importing = true;
@@ -90,6 +96,9 @@ final class BZV_Native {
         if (!$id || get_post_type($id) !== self::TYPE || !get_post_meta($id, '_bop_source_id', true) ||
             (($_POST['post_status'] ?? '') !== 'publish' && !isset($_POST['publish']) && get_post_status($id) !== 'publish')) { return; }
         if (!self::available($id)) { acf_add_validation_error('', 'Publiceren kan alleen met een actuele, actieve BOP-afnemer.'); }
+        $visibility = self::fields()['show_on_map'] ?? '';
+        $show = isset($_POST['acf'][$visibility]) ? (string) wp_unslash($_POST['acf'][$visibility]) === '1' : self::show_on_map($id);
+        if (!$show) { return; }
         $key = self::fields()['location'];
         $value = isset($_POST['acf'][$key]) ? wp_unslash($_POST['acf'][$key]) : get_post_meta($id, 'location', true);
         if (is_string($value)) { $value = json_decode($value, true); }
@@ -99,7 +108,7 @@ final class BZV_Native {
         $id = (int) $id;
         if (self::$importing || get_post_type($id) !== self::TYPE || wp_is_post_revision($id)) { return; }
         self::derive_address($id);
-        if (get_post_meta($id, '_bop_source_id', true) && get_post_status($id) === 'publish' && (!self::available($id) || !self::valid($id))) {
+        if (get_post_meta($id, '_bop_source_id', true) && get_post_status($id) === 'publish' && (!self::available($id) || (self::show_on_map($id) && !self::valid($id)))) {
             self::$importing = true;
             try { wp_update_post(['ID' => $id, 'post_status' => 'draft']); }
             finally { self::$importing = false; }
@@ -108,7 +117,7 @@ final class BZV_Native {
         self::purge();
     }
     public static function meta_changed($unused, $id, $key, $value): void {
-        if (!self::$importing && get_post_type((int) $id) === self::TYPE && in_array($key, ['address', 'postal_code', 'city', 'location'], true)) { self::purge(); }
+        if (!self::$importing && get_post_type((int) $id) === self::TYPE && in_array($key, ['address', 'postal_code', 'city', 'location', 'show_on_map'], true)) { self::purge(); }
     }
     public static function notice(): void {
         $key = 'bzv_publish_notice_' . get_current_user_id();
@@ -119,9 +128,10 @@ final class BZV_Native {
         if (!BZV_Postoffice::fresh()) { return ['BOP-status niet actueel', 'De laatste BOP-lijst is ouder dan 48 uur of ontbreekt. De afnemer blijft verborgen tot de verbinding is bijgewerkt.']; }
         if (get_post_meta($id, '_bop_active', true) !== '1') { return ['Inactieve afnemer', 'Deze afnemer voldoet volgens BOP momenteel niet aan de afnemerregels en wordt niet op de kaart getoond.']; }
         if (!self::available($id)) { return ['Synchronisatie onvolledig', 'De afnemer is nog niet volledig bijgewerkt uit de nieuwste BOP-lijst.']; }
-        return ['Actieve afnemer', 'BOP bepaalt op basis van bestellingen dat deze afnemer actief is. Na locatiecontrole en Publiceren verschijnt de afnemer op de kaart.'];
+        return ['Actieve afnemer', 'BOP bepaalt op basis van bestellingen dat deze afnemer actief is. Met Tonen op de openbare kaart op Ja verschijnt de afnemer na locatiecontrole en Publiceren op de kaart.'];
     }
     public static function website_status(int $id): string {
+        if (!self::show_on_map($id)) { return 'Verborgen — tonen op de openbare kaart staat uit'; }
         if (!self::available($id)) { return 'Verborgen — zie BOP-status'; }
         if (!self::valid($id)) { return 'Verborgen — selecteer een Google-locatie'; }
         return get_post_status($id) === 'publish' ? 'Zichtbaar op de zuivelkaart' : 'Verborgen — nog niet gepubliceerd';
@@ -138,7 +148,7 @@ final class BZV_Native {
         echo '<p>' . esc_html($explanation) . '</p>';
         $stamp = get_option(BZV_Postoffice::SNAPSHOT, [])['publishedTimestamp'] ?? 0;
         if ($stamp) { echo '<p>BOP-brongegevens: ' . esc_html(wp_date('d-m-Y H:i', $stamp)) . '.</p>'; }
-        echo '<p>Kies en controleer het adres in het Google-kaartveld. Klik op <strong>Publiceren</strong> om het te tonen. Met <strong>Concept opslaan</strong> blijft het verborgen. De BOP-status wordt automatisch bijgewerkt en is hier niet te wijzigen.</p>';
+        echo '<p>Zet <strong>Tonen op de openbare kaart</strong> op Nee voor afnemers zonder openbare verkooplocatie. Voor zichtbaarheid: kies Ja, controleer het Google-adres en klik op <strong>Publiceren</strong>. Een concept blijft verborgen. De BOP-status wordt automatisch bijgewerkt en is hier niet te wijzigen.</p>';
     }
     public static function column(string $column, int $id): void {
         if ($column === 'bzv_bop') { echo esc_html(self::source_status($id)[0]); }
@@ -155,7 +165,7 @@ final class BZV_Native {
         if (!BZV_Postoffice::fresh()) { return []; }
         $items = [];
         foreach (get_posts(['post_type' => self::TYPE, 'post_status' => 'publish', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC', 'meta_key' => '_bop_active', 'meta_value' => '1']) as $post) {
-            if (!get_post_meta($post->ID, '_bop_source_id', true) || !self::available($post->ID) || !self::valid($post->ID)) { continue; }
+            if (!get_post_meta($post->ID, '_bop_source_id', true) || !self::show_on_map($post->ID) || !self::available($post->ID) || !self::valid($post->ID)) { continue; }
             $point = get_post_meta($post->ID, 'location', true);
             $item = ['postId' => $post->ID, 'name' => $post->post_title, ...self::location_address($point),
                 'latitude' => (float) $point['lat'], 'longitude' => (float) $point['lng']];
