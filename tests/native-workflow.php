@@ -39,10 +39,27 @@ $_POST = ['post_ID' => $postId, 'publish' => 'Publiceren', 'post_status' => 'dra
 BZV_Native::validate_editor(); check(count($validationErrors ?? []) === 1, 'Publish requires a valid map point through standard ACF validation.');
 wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(get_post_status($postId) === 'draft' && !BZV_Native::looper(), 'Non-ACF publication cannot expose an incomplete post.');
-update_field('field_6a8755b152cb6', ['address' => 'Dorpsstraat 12', 'lat' => 52.0, 'lng' => 4.0], $postId);
+// Reproduce the reported workflow: only choose the map; the old text fields stay empty.
+foreach (['address', 'postal_code', 'city'] as $name) { update_post_meta($postId, $name, ''); }
+$map = ['address' => 'Dorpsstraat 12, 1234 AB Testdorp, Nederland', 'street_name' => 'Dorpsstraat', 'street_number' => '12', 'post_code' => '1234 AB', 'city' => 'Testdorp', 'lat' => 52.0, 'lng' => 4.0];
+update_field('field_6a8755b152cb6', $map, $postId);
+check(BZV_Native::source_status($postId)[0] === 'Actieve afnemer' && BZV_Native::website_status($postId) === 'Verborgen — nog niet gepubliceerd', 'BOP activity is distinct from native publication.');
+foreach ($acfFields as $field) { check((BZV_Native::prepare_field($field) === false) === ($field['name'] !== 'location'), 'Only the native map remains editable; derived address and import-ID are hidden.'); }
+check(BZV_Native::prepare_field(['name' => 'address', 'key' => 'unrelated_field']) !== false, 'Other ACF forms retain their own address fields.');
+update_post_meta($postId, 'import_id', 'original-id');
+check(BZV_Native::protect_import_id('forged-id', $postId, []) === 'original-id', 'Hidden import-ID is also protected from submitted ACF edits.');
+$_POST['acf'] = ['field_6a8755b152cb6' => json_encode($map)];
 $validationErrors = []; BZV_Native::validate_editor(); check(!$validationErrors, 'Complete active native post passes ACF validation.');
 $purged = []; wp_update_post(['ID' => $postId, 'post_status' => 'publish']);
 check(get_post_status($postId) === 'publish' && count(BZV_Native::looper()) === 1 && $purged === [['https://example.test/zuivel/']], 'Native Publish exposes the ACF point and invalidates the target WP Rocket page.');
+check(get_post_meta($postId, 'address') === 'Dorpsstraat 12' && get_post_meta($postId, 'postal_code') === '1234 AB' && get_post_meta($postId, 'city') === 'Testdorp', 'Saving derives existing list columns from the canonical map.');
+check(BZV_Native::website_status($postId) === 'Zichtbaar op de zuivelkaart', 'Read-only website status reflects actual published marker eligibility.');
+$minimalMap = ['address' => 'Een adres zonder losse Google-onderdelen', 'lat' => 52.0, 'lng' => 4.0];
+check(BZV_Native::valid_location($minimalMap) && BZV_Native::location_address($minimalMap)['address'] === $minimalMap['address'], 'Optional Google address components never require duplicate manual input.');
+check(!BZV_Native::valid_location(['lat' => 52, 'lng' => 4]) && !BZV_Native::valid_location(['address' => 'x', 'lat' => '1e999', 'lng' => 4]), 'Missing address and non-finite points remain blocked.');
+$_POST['acf']['field_6a8755b152cb6'] = ''; $validationErrors = []; BZV_Native::validate_editor();
+check(count($validationErrors) === 1, 'Clearing a posted map is rejected even if the previous saved map was valid.');
+$_POST['acf']['field_6a8755b152cb6'] = json_encode($map);
 update_field('field_6a87537d43248', 'Eigen adres 8', $postId); BZV_Postoffice::sync(true);
 check(get_post_meta($postId, 'address') === 'Eigen adres 8', 'Postkantoor never overwrites native editor changes.');
 $directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('c', 64) . '"';
@@ -50,11 +67,11 @@ $directory['customers'][0]['aliases'] = [$directory['customers'][0]['customerId'
 check(BZV_Postoffice::sync(true)['ok'] && count($posts) === 1 && get_post_status($postId) === 'publish', 'Explicit BOP aliases retain the same native post and publication.');
 $remoteMode = 'fail'; check(!BZV_Postoffice::sync(true)['ok'] && count(BZV_Native::looper()) === 1, 'Network failure retains a still-fresh complete list.'); $remoteMode = 'fresh';
 $store[BZV_Postoffice::SNAPSHOT]['publishedTimestamp'] = time() - 48 * 3600;
-check(!BZV_Native::looper(), 'A stale source cannot keep public markers alive.');
+check(!BZV_Native::looper() && BZV_Native::source_status($postId)[0] === 'BOP-status niet actueel', 'An expired source is distinct from an inactive customer and cannot expose a marker.');
 BZV_Postoffice::sync(true);
 $directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('d', 64) . '"';
 $directory['customers'][0]['active'] = false; BZV_Postoffice::sync(true);
-check(get_post_status($postId) === 'draft' && !BZV_Native::looper(), 'BOP archiving drafts the post and removes its marker.');
+check(get_post_status($postId) === 'draft' && !BZV_Native::looper() && BZV_Native::source_status($postId)[0] === 'Inactieve afnemer', 'BOP archiving drafts the post and has a clear inactive status.');
 $directory['generation'] = (string) ((int) $directory['generation'] + 1); $directory['eTag'] = '"' . str_repeat('e', 64) . '"';
 $directory['customers'][0]['active'] = true; BZV_Postoffice::sync(true);
 check(get_post_status($postId) === 'draft', 'Returning posts require the normal native Publish action.');

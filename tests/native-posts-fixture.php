@@ -4,6 +4,7 @@ $acfFields = [
     ['name' => 'address', 'key' => 'field_6a87537d43248', 'type' => 'text'],
     ['name' => 'postal_code', 'key' => 'field_6a87547118145', 'type' => 'text'],
     ['name' => 'city', 'key' => 'field_6a87539e43249', 'type' => 'text'],
+    ['name' => 'import_id', 'key' => 'field_6a8753c04324c', 'type' => 'text'],
     ['name' => 'location', 'key' => 'field_6a8755b152cb6', 'type' => 'google_map'],
 ];
 function acf_get_field_groups($args) { return [['key' => 'group_6a8753596bc2c']]; }

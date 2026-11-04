@@ -60,7 +60,7 @@ final class BZV_Settings {
     }
     public static function page(): void {
         if (!current_user_can('manage_options')) { return; }
-        echo '<div class="wrap"><h1>BOP-koppeling</h1><p>Afnemers controleer en publiceer je in de <a href="' . esc_url(admin_url('edit.php?post_type=' . BZV_Native::TYPE)) . '">gewone WordPress-lijst</a>, met de bestaande ACF-adres- en kaartvelden.</p>';
+        echo '<div class="wrap"><h1>BOP-koppeling</h1><p>Afnemers controleer en publiceer je in de <a href="' . esc_url(admin_url('edit.php?post_type=' . BZV_Native::TYPE)) . '">gewone WordPress-lijst</a>, met het bestaande ACF Google-kaartveld.</p>';
         settings_errors(); $status = get_option('bzv_directory_status', []);
         if ($status) { echo '<div class="notice notice-' . (!empty($status['ok']) ? 'success' : 'warning') . ' inline"><p>' . esc_html($status['message']) . ' (' . esc_html(wp_date('d-m-Y H:i', $status['at'])) . ')</p></div>'; }
         echo '<form method="post" action="options.php">'; settings_fields('bzv_connection'); do_settings_sections('bop-connection'); submit_button(); echo '</form>';

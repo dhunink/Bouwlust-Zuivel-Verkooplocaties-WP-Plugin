@@ -1,4 +1,4 @@
-# Bouwlust Zuivel Verkooplocaties — 0.6.1
+# Bouwlust Zuivel Verkooplocaties — 0.6.2
 
 BOP bepaalt wie afnemer is en of die actief is. Postkantoor levert de private,
 volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicatie.
@@ -6,17 +6,21 @@ volledige lijst. WordPress beheert de naam, het adres, het kaartpunt en publicat
 ## Gewone WordPress-werkwijze
 
 Nieuwe afnemers worden concepten van het bestaande CPT `zuivel_verkooppunt`.
-Open **Zuivel-verkooppunten**, controleer de naam en vul de bestaande ACF-velden
-`address`, `postal_code`, `city` en `location` in. Zoek de juiste vestiging in het
-ACF Google Map-veld en klik bewust op **Publiceren**. Concept opslaan publiceert
+Open **Zuivel-verkooppunten**, controleer de naam en kies de juiste vestiging in het
+bestaande ACF Google Map-veld (`location`). Klik bewust op **Publiceren**.
+Het gekozen kaartveld bevat het adres en de coördinaten; de drie losse adresvelden
+en het import-ID zijn verborgen. Het import-ID is bovendien via ACF niet te wijzigen.
+Adreskolommen worden uit de kaart afgeleid; ontbrekende optionele Google-onderdelen
+blokkeren publicatie niet zolang het kaartveld een adres en geldige positie bevat. Concept opslaan publiceert
 niets. De oude aparte controlepagina verwijst voortaan naar deze CPT-lijst.
 
 Een bestaande ACF Google-sleutel blijft behouden. Zonder bestaande ACF-sleutel wordt
 de publieke getter van GravityWiz Address Autocomplete gebruikt; die sleutel wordt
 beheerd onder Gravity Forms → Instellingen → Autocomplete.
 Er zijn geen aparte Google-instellingen, eigen kaartinterface of servergeocoder.
-ACF verzorgt de zoekfunctie; beschikbare BOP-adressen worden bij de eerste import
-vooringevuld. Als BOP geen adres kent, zoek en controleer je de vestiging zelf.
+ACF verzorgt de zoekfunctie. De kolom BOP-status onderscheidt actief, inactief,
+verlopen bron en onvolledige synchronisatie. De editor toont dezelfde status, uitleg,
+brondatum en zichtbaarheid op de website als alleen-lezen informatie.
 
 BOP-verversingen overschrijven de door een beheerder ingevulde naam, het adres en
 kaartpunt niet. De bronidentiteit en expliciete BOP-aliassen houden de CPT-koppeling
